@@ -6,7 +6,8 @@ let currentChartData = []; // Store current chart data for hover functionality
 let chartSeries = {
     savings: null,
     netWorth: null,
-    loanBalance: null
+    loanBalance: null,
+    goalLine: null
 };
 
 // Initialize the chart when page loads
@@ -30,7 +31,7 @@ function initializeChart() {
     try {
         chart = LightweightCharts.createChart(chartContainer, {
             width: chartContainer.clientWidth || 800,
-            height: 500,
+            height: chartContainer.clientHeight || 500,
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -49,13 +50,18 @@ function initializeChart() {
                 borderColor: '#cccccc',
                 timeVisible: true,
                 secondsVisible: false,
+                fixLeftEdge: false,
+                fixRightEdge: false,
             },
         });
 
         // Handle window resize
         window.addEventListener('resize', () => {
             if (chart && chartContainer) {
-                chart.applyOptions({ width: chartContainer.clientWidth });
+                chart.applyOptions({ 
+                    width: chartContainer.clientWidth,
+                    height: chartContainer.clientHeight 
+                });
             }
         });
         
@@ -85,6 +91,7 @@ function calculateFinancialGrowth() {
     const monthlySavings = parseFloat(document.getElementById('monthlySavings').value) || 0;
     const annualRate = parseFloat(document.getElementById('interestRate').value) || 0;
     const years = parseInt(document.getElementById('timePeriod').value) || 1;
+    const goalAmount = parseFloat(document.getElementById('goalAmount').value) || 0;
     
     const monthlyRate = annualRate / 100 / 12;
     const totalMonths = years * 12;
@@ -98,11 +105,11 @@ function calculateFinancialGrowth() {
     let totalLoanBalance = 0;
     let totalInterestPaid = 0;
     let totalPrincipalPaid = 0;
+    let goalReachedMonth = null;
     
     // Calculate loan payments for each active loan
     const loanPayments = loans.map(loan => ({
         ...loan,
-        monthlyPayment: calculateMonthlyPayment(loan.amount, loan.rate, loan.term),
         remainingBalance: loan.amount,
         startMonth: loan.startMonth || 1
     }));
@@ -168,6 +175,13 @@ function calculateFinancialGrowth() {
         savingsData.push({ time: timestamp, value: currentSavings });
         netWorthData.push({ time: timestamp, value: netWorth });
         loanBalanceData.push({ time: timestamp, value: totalLoanBalance });
+        
+        // Check if goal is reached
+        if (goalAmount > 0 && currentSavings >= goalAmount && !goalReachedMonth) {
+            goalReachedMonth = month;
+            // Stop the chart here if goal is reached
+            break;
+        }
     }
     
     return {
@@ -180,7 +194,10 @@ function calculateFinancialGrowth() {
         totalLoanBalance,
         totalInterestPaid,
         totalPrincipalPaid,
-        totalContributions: initialAmount + (monthlySavings * totalMonths)
+        totalContributions: initialAmount + (monthlySavings * (goalReachedMonth || totalMonths)),
+        goalAmount: goalAmount,
+        goalReachedMonth: goalReachedMonth,
+        actualMonths: goalReachedMonth || totalMonths
     };
 }
 
@@ -211,6 +228,10 @@ function updateChart() {
     if (chartSeries.loanBalance) {
         chart.removeSeries(chartSeries.loanBalance);
         chartSeries.loanBalance = null;
+    }
+    if (chartSeries.goalLine) {
+        chart.removeSeries(chartSeries.goalLine);
+        chartSeries.goalLine = null;
     }
     
     try {
@@ -244,6 +265,37 @@ function updateChart() {
                 title: 'Total Loan Balance'
             });
             chartSeries.loanBalance.setData(results.loanBalanceData);
+        }
+        
+        // Add goal line if goal is set
+        if (results.goalAmount > 0) {
+            chartSeries.goalLine = chart.addLineSeries({
+                color: '#ff9800',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                title: `Goal: $${results.goalAmount.toLocaleString()}`
+            });
+            
+            // Create horizontal line data for the goal
+            const goalLineData = results.savingsData.map(point => ({
+                time: point.time,
+                value: results.goalAmount
+            }));
+            chartSeries.goalLine.setData(goalLineData);
+            
+            // Add goal marker if goal is reached
+            if (results.goalReachedMonth) {
+                const goalPoint = results.data.find(d => d.month === results.goalReachedMonth);
+                if (goalPoint) {
+                    chartSeries.savings.setMarkers([{
+                        time: goalPoint.time,
+                        position: 'aboveBar',
+                        color: '#ff9800',
+                        shape: 'circle',
+                        text: `🎯 Goal Reached! Month ${results.goalReachedMonth}`
+                    }]);
+                }
+            }
         }
         
         // Add crosshair move handler for hover functionality
@@ -307,13 +359,22 @@ function updateSummaryForTime(time) {
 function updateSummary(results) {
     const summaryContainer = document.getElementById('summary');
     
+    // Create goal achievement card if goal is set
+    const goalCard = results.goalAmount > 0 ? `
+        <div class="summary-card" style="background: ${results.goalReachedMonth ? '#e8f5e8' : '#fff3cd'};">
+            <h4>${results.goalReachedMonth ? '🎯 Goal Achieved' : '🎯 Goal Progress'}</h4>
+            <div class="value">${results.goalReachedMonth ? `Month ${results.goalReachedMonth}` : `${Math.round((results.finalSavings / results.goalAmount) * 100)}%`}</div>
+        </div>
+    ` : '';
+    
     summaryContainer.innerHTML = `
+        ${goalCard}
         <div class="summary-card">
-            <h4>Final Savings</h4>
+            <h4>${results.goalReachedMonth ? 'Savings at Goal' : 'Final Savings'}</h4>
             <div class="value">$${results.finalSavings.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
         </div>
         <div class="summary-card">
-            <h4>Final Net Worth</h4>
+            <h4>${results.goalReachedMonth ? 'Net Worth at Goal' : 'Final Net Worth'}</h4>
             <div class="value">$${results.finalNetWorth.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
         </div>
         <div class="summary-card">
@@ -328,10 +389,6 @@ function updateSummary(results) {
             <h4>Remaining Loan Balance</h4>
             <div class="value">$${results.totalLoanBalance.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
         </div>
-        <div class="summary-card">
-            <h4>Total Interest Paid</h4>
-            <div class="value">$${results.totalInterestPaid.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-        </div>
     `;
 }
 
@@ -340,10 +397,23 @@ function addLoan() {
     const rate = parseFloat(document.getElementById('loanRate').value) || 0;
     const term = parseInt(document.getElementById('loanTerm').value) || 1;
     const startMonth = parseInt(document.getElementById('loanStartMonth').value) || 1;
+    const customPayment = parseFloat(document.getElementById('loanMonthlyPayment').value) || 0;
     
     if (amount <= 0) {
         alert('Please enter a valid loan amount');
         return;
+    }
+    
+    const calculatedPayment = calculateMonthlyPayment(amount, rate, term);
+    const monthlyPayment = customPayment > 0 ? customPayment : calculatedPayment;
+    
+    // Validate that custom payment is at least the minimum required
+    if (customPayment > 0 && customPayment < calculatedPayment) {
+        const proceed = confirm(
+            `Warning: Your custom payment ($${customPayment.toLocaleString()}) is less than the minimum required payment ($${calculatedPayment.toLocaleString()}). ` +
+            `This loan may never be fully paid off. Do you want to continue?`
+        );
+        if (!proceed) return;
     }
     
     const loan = {
@@ -352,7 +422,9 @@ function addLoan() {
         rate: rate,
         term: term,
         startMonth: startMonth,
-        monthlyPayment: calculateMonthlyPayment(amount, rate, term)
+        monthlyPayment: monthlyPayment,
+        calculatedPayment: calculatedPayment,
+        isCustomPayment: customPayment > 0
     };
     
     loans.push(loan);
@@ -364,6 +436,7 @@ function addLoan() {
     document.getElementById('loanRate').value = '4.5';
     document.getElementById('loanTerm').value = '30';
     document.getElementById('loanStartMonth').value = '1';
+    document.getElementById('loanMonthlyPayment').value = '';
 }
 
 function removeLoan(loanId) {
@@ -376,23 +449,62 @@ function updateLoansList() {
     const loansList = document.getElementById('loansList');
     
     if (loans.length === 0) {
-        loansList.innerHTML = '<p style="color: #666; font-style: italic;">No loans added yet</p>';
+        loansList.innerHTML = '<p style="color: #666; font-style: italic; font-size: 12px; margin: 0;">No loans added yet</p>';
         return;
     }
     
-    loansList.innerHTML = loans.map(loan => `
-        <div class="loan-item">
-            <strong>$${loan.amount.toLocaleString()}</strong> at ${loan.rate}% for ${loan.term} years
-            <br>
-            <small>Monthly Payment: $${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 2})} | Starts: Month ${loan.startMonth}</small>
-            <button class="remove-loan" onclick="removeLoan(${loan.id})">Remove</button>
-        </div>
-    `).join('');
+    loansList.innerHTML = loans.map(loan => {
+        const paymentInfo = loan.isCustomPayment 
+            ? `<strong>$${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 0})}</strong> (Custom)`
+            : `$${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 0})} (Min)`;
+        
+        const extraPayment = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
+            ? `<br><small style="color: #28a745;">+$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', {maximumFractionDigits: 0})}/mo extra</small>`
+            : '';
+        
+        return `
+            <div class="loan-item">
+                <div><strong>$${loan.amount.toLocaleString()}</strong> @ ${loan.rate}% / ${loan.term}yr</div>
+                <div style="margin: 3px 0;">Payment: ${paymentInfo}</div>
+                <div style="margin: 3px 0;">Starts: Month ${loan.startMonth}</div>
+                ${extraPayment}
+                <button class="remove-loan" onclick="removeLoan(${loan.id})">Remove</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function clearAllLoans() {
+    if (loans.length === 0) return;
+    
+    if (confirm('Are you sure you want to remove all loans?')) {
+        loans = [];
+        updateLoansList();
+        updateChart();
+    }
 }
 
 // Auto-update chart when inputs change
 document.addEventListener('input', function(e) {
-    if (e.target.type === 'number' && ['initialAmount', 'monthlySavings', 'interestRate', 'timePeriod'].includes(e.target.id)) {
+    if (e.target.type === 'number' && ['initialAmount', 'monthlySavings', 'interestRate', 'timePeriod', 'goalAmount'].includes(e.target.id)) {
         setTimeout(updateChart, 300); // Debounce updates
     }
+    
+    // Update loan payment placeholder when loan details change
+    if (['loanAmount', 'loanRate', 'loanTerm'].includes(e.target.id)) {
+        updateLoanPaymentPlaceholder();
+    }
 });
+
+function updateLoanPaymentPlaceholder() {
+    const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
+    const rate = parseFloat(document.getElementById('loanRate').value) || 0;
+    const term = parseInt(document.getElementById('loanTerm').value) || 1;
+    
+    if (amount > 0 && rate >= 0 && term > 0) {
+        const calculatedPayment = calculateMonthlyPayment(amount, rate, term);
+        document.getElementById('loanMonthlyPayment').placeholder = `Min: $${calculatedPayment.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+    } else {
+        document.getElementById('loanMonthlyPayment').placeholder = 'Auto-calculated';
+    }
+}
