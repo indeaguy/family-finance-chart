@@ -1,0 +1,48 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 25000,
+    "monthlySavings": 1200,
+    "interestRate": 8.5,
+    "timePeriod": 30,
+    "goalAmount": 1000000,
+    "netWorthOverrides": {
+      "6": 85000,
+      "12": 125000,
+      "18": 95000,
+      "24": 180000,
+      "36": 220000
+    }
+  },
+  "loans": [
+    {
+      "amount": 350000,
+      "rate": 4.8,
+      "term": 30,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": null,
+      "isCustomPayment": false
+    },
+    {
+      "amount": 45000,
+      "rate": 6.2,
+      "term": 5,
+      "startMonth": 6,
+      "startDate": "2024-06",
+      "monthlyPayment": 1000,
+      "isCustomPayment": true
+    },
+    {
+      "amount": 15000,
+      "rate": 12.5,
+      "term": 3,
+      "startMonth": 12,
+      "startDate": "2024-12",
+      "monthlyPayment": null,
+      "isCustomPayment": false
+    }
+  ],
+  "exportDate": "2025-01-09T04:00:00.000Z",
+  "version": "1.2"
+}

@@ -182,6 +182,64 @@
             font-style: italic;
             font-size: 12px;
         }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .close {
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #666;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .override-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 80px;
+            gap: 10px;
+            align-items: center;
+            margin: 8px 0;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .override-row input {
+            width: auto;
+        }
+        .remove-override {
+            background: #dc3545;
+            padding: 4px 8px;
+            font-size: 11px;
+            width: auto;
+        }
     </style>
 </head>
 <body>
@@ -190,6 +248,10 @@
         <div class="controls-left">
             <div class="control-group">
                 <h3>💰 Savings & Interest</h3>
+                <div class="input-row">
+                    <label>Start Date:</label>
+                    <input type="month" id="startDate" value="">
+                </div>
                 <div class="input-row">
                     <label>Initial Amount ($):</label>
                     <input type="number" id="initialAmount" value="10000" min="0">
@@ -211,6 +273,7 @@
                     <input type="number" id="goalAmount" placeholder="Optional" min="0">
                 </div>
                 <div class="help-text">Chart ends when goal is reached (if set)</div>
+                <button onclick="showNetWorthOverrides()">📈 Net Worth Overrides</button>
             </div>
 
             <div class="control-group">
@@ -228,8 +291,8 @@
                     <input type="number" id="loanTerm" value="30" min="1" max="50">
                 </div>
                 <div class="input-row">
-                    <label>Start Month:</label>
-                    <input type="number" id="loanStartMonth" value="1" min="1">
+                    <label>Start Date:</label>
+                    <input type="month" id="loanStartDate" value="">
                 </div>
                 <div class="input-row">
                     <label>Payment ($):</label>
@@ -261,12 +324,42 @@
                 <h3>⚡ Quick Actions</h3>
                 <button onclick="updateChart()">📊 Refresh Chart</button>
                 <button onclick="clearAllLoans()">🗑️ Clear All Loans</button>
+                <button onclick="exportToJSON()">📤 Export to JSON</button>
+                <button onclick="document.getElementById('jsonFileInput').click()">📥 Import JSON</button>
+                <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="importFromJSON(event)">
+                <div class="help-text">Save and load your financial scenarios</div>
             </div>
         </div>
 
         <!-- Summary -->
         <div class="summary" id="summary">
             <!-- Summary cards will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Net Worth Overrides Modal -->
+    <div id="netWorthOverridesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📈 Net Worth Overrides</h2>
+                <span class="close" onclick="closeNetWorthOverrides()">&times;</span>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <label>Override Date:</label>
+                    <input type="month" id="overrideDate" style="width: 150px;">
+                    <label>Net Worth ($):</label>
+                    <input type="number" id="overrideAmount" placeholder="Amount" style="width: 120px;">
+                    <button onclick="addNetWorthOverrideFromForm()">+ Add</button>
+                </div>
+                <div class="help-text">Override net worth for specific months (asset purchases, windfalls, market changes, etc.)</div>
+            </div>
+            <div id="netWorthOverridesList">
+                <!-- Override rows will be populated here -->
+            </div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeNetWorthOverrides()" style="background: #28a745;">Done</button>
+            </div>
         </div>
     </div>
 
