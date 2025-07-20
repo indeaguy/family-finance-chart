@@ -1,0 +1,31 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 50000,
+    "monthlySavings": 2500,
+    "interestRate": 10.5,
+    "timePeriod": 20,
+    "goalAmount": 1500000,
+    "netWorthOverrides": {}
+  },
+  "chartHeader": {
+    "title": "🚀 AGGRESSIVE GROWTH STRATEGY",
+    "subtitle": "High-risk, high-reward investment portfolio targeting 10.5% annual returns",
+    "background": "solid",
+    "position": "top-left",
+    "visible": true
+  },
+  "loans": [
+    {
+      "amount": 400000,
+      "rate": 3.2,
+      "term": 15,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": null,
+      "isCustomPayment": false
+    }
+  ],
+  "exportDate": "2024-12-15T10:30:00.000Z",
+  "version": "1.4"
+}

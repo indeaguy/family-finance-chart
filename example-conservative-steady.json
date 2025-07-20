@@ -1,0 +1,35 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 25000,
+    "monthlySavings": 900,
+    "interestRate": 4.8,
+    "timePeriod": 30,
+    "goalAmount": 750000,
+    "netWorthOverrides": {
+      "120": 350000,
+      "240": 550000,
+      "300": 650000
+    }
+  },
+  "chartHeader": {
+    "title": "Steady & Conservative Growth",
+    "subtitle": "Low-risk approach with consistent, reliable returns over 30 years",
+    "background": "gradient",
+    "position": "top-right",
+    "visible": true
+  },
+  "loans": [
+    {
+      "amount": 320000,
+      "rate": 3.5,
+      "term": 30,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": null,
+      "isCustomPayment": false
+    }
+  ],
+  "exportDate": "2024-12-15T10:30:00.000Z",
+  "version": "1.4"
+}

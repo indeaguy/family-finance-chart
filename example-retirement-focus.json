@@ -1,0 +1,35 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 150000,
+    "monthlySavings": 3500,
+    "interestRate": 8.2,
+    "timePeriod": 12,
+    "goalAmount": 1000000,
+    "netWorthOverrides": {
+      "60": 850000,
+      "84": 950000,
+      "120": 1200000
+    }
+  },
+  "chartHeader": {
+    "title": "Retirement Countdown",
+    "subtitle": "Final push to financial independence",
+    "background": "gradient",
+    "position": "top-left",
+    "visible": false
+  },
+  "loans": [
+    {
+      "amount": 180000,
+      "rate": 2.8,
+      "term": 8,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": 2500,
+      "isCustomPayment": true
+    }
+  ],
+  "exportDate": "2024-12-15T10:30:00.000Z",
+  "version": "1.4"
+}

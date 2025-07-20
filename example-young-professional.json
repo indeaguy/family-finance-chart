@@ -1,0 +1,40 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 2000,
+    "monthlySavings": 1200,
+    "interestRate": 7.8,
+    "timePeriod": 25,
+    "goalAmount": 500000,
+    "netWorthOverrides": {}
+  },
+  "chartHeader": {
+    "title": "Young Professional Journey",
+    "subtitle": "Building wealth from the ground up - starting small, thinking big!",
+    "background": "gradient",
+    "position": "bottom-left",
+    "visible": true
+  },
+  "loans": [
+    {
+      "amount": 35000,
+      "rate": 6.8,
+      "term": 10,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": null,
+      "isCustomPayment": false
+    },
+    {
+      "amount": 25000,
+      "rate": 4.2,
+      "term": 5,
+      "startMonth": 6,
+      "startDate": "2024-06",
+      "monthlyPayment": 500,
+      "isCustomPayment": true
+    }
+  ],
+  "exportDate": "2024-12-15T10:30:00.000Z",
+  "version": "1.4"
+}

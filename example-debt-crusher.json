@@ -1,0 +1,49 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 8000,
+    "monthlySavings": 600,
+    "interestRate": 5.5,
+    "timePeriod": 10,
+    "goalAmount": 100000,
+    "netWorthOverrides": {}
+  },
+  "chartHeader": {
+    "title": "💪 DEBT ELIMINATION PLAN",
+    "subtitle": "Aggressive debt payoff strategy with accelerated payments",
+    "background": "transparent",
+    "position": "bottom-right",
+    "visible": true
+  },
+  "loans": [
+    {
+      "amount": 45000,
+      "rate": 18.9,
+      "term": 5,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": 1200,
+      "isCustomPayment": true
+    },
+    {
+      "amount": 15000,
+      "rate": 12.5,
+      "term": 3,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": 600,
+      "isCustomPayment": true
+    },
+    {
+      "amount": 8500,
+      "rate": 22.4,
+      "term": 2,
+      "startMonth": 1,
+      "startDate": "2024-01",
+      "monthlyPayment": 500,
+      "isCustomPayment": true
+    }
+  ],
+  "exportDate": "2024-12-15T10:30:00.000Z",
+  "version": "1.4"
+}

@@ -92,6 +92,249 @@ function updateNetWorthOverridesList() {
     }).join('');
 }
 
+// Utility function for debouncing input events
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Utility function to format currency values
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(value);
+}
+
+// Summary overlay management
+function toggleSummaryOverlay() {
+    const overlay = document.getElementById('summaryOverlay');
+    if (overlay.classList.contains('show')) {
+        closeSummaryOverlay();
+    } else {
+        showSummaryOverlay();
+    }
+}
+
+function showSummaryOverlay() {
+    const overlay = document.getElementById('summaryOverlay');
+    updateSummaryOverlay();
+    overlay.classList.add('show');
+}
+
+function closeSummaryOverlay() {
+    const overlay = document.getElementById('summaryOverlay');
+    overlay.classList.remove('show');
+}
+
+function updateSummaryOverlay() {
+    const container = document.getElementById('summaryOverlayContent');
+    if (!container) return;
+    
+    // Get current values
+    const initialAmount = parseFloat(document.getElementById('initialAmount').value) || 0;
+    const monthlySavings = parseFloat(document.getElementById('monthlySavings').value) || 0;
+    const interestRate = parseFloat(document.getElementById('interestRate').value) || 0;
+    const timePeriod = parseInt(document.getElementById('timePeriod').value) || 1;
+    const goalAmount = parseFloat(document.getElementById('goalAmount').value) || 0;
+    
+    // Calculate final values
+    const monthlyRate = interestRate / 100 / 12;
+    const totalMonths = timePeriod * 12;
+    
+    let finalSavings = initialAmount;
+    if (monthlyRate > 0) {
+        finalSavings = initialAmount * Math.pow(1 + monthlyRate, totalMonths) + 
+                      monthlySavings * ((Math.pow(1 + monthlyRate, totalMonths) - 1) / monthlyRate);
+    } else {
+        finalSavings = initialAmount + (monthlySavings * totalMonths);
+    }
+    
+    // Calculate total loan balance
+    let totalLoanBalance = 0;
+    loans.forEach(loan => {
+        const loanMonths = Math.min(totalMonths - loan.startMonth + 1, loan.term * 12);
+        if (loanMonths > 0) {
+            const monthlyRate = loan.rate / 100 / 12;
+            if (monthlyRate > 0) {
+                const remaining = loan.amount * Math.pow(1 + monthlyRate, loanMonths) - 
+                                loan.monthlyPayment * ((Math.pow(1 + monthlyRate, loanMonths) - 1) / monthlyRate);
+                totalLoanBalance += Math.max(0, remaining);
+            } else {
+                totalLoanBalance += Math.max(0, loan.amount - (loan.monthlyPayment * loanMonths));
+            }
+        }
+    });
+    
+    const netWorth = finalSavings - totalLoanBalance;
+    const totalContributions = initialAmount + (monthlySavings * totalMonths);
+    const totalInterest = finalSavings - totalContributions;
+    
+    // Reset the title to default
+    const titleElement = document.querySelector('.summary-overlay-title');
+    if (titleElement) {
+        titleElement.textContent = '📊 Financial Summary';
+    }
+    
+    // Create summary cards
+    container.innerHTML = `
+        <div class="summary-overlay-card">
+            <h4>Final Savings</h4>
+            <div class="value">${formatCurrency(finalSavings)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Net Worth</h4>
+            <div class="value">${formatCurrency(netWorth)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Total Interest</h4>
+            <div class="value">${formatCurrency(totalInterest)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Loan Balance</h4>
+            <div class="value">${formatCurrency(totalLoanBalance)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Monthly Savings</h4>
+            <div class="value">${formatCurrency(monthlySavings)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Time Period</h4>
+            <div class="value">${timePeriod} years</div>
+        </div>
+    `;
+}
+
+// Chart header modal management
+function showChartHeaderModal() {
+    // Populate modal with current values
+    const header = document.querySelector('.chart-header');
+    const title = header.querySelector('h1').textContent;
+    const subtitle = header.querySelector('p').textContent;
+    
+    document.getElementById('chartTitle').value = title;
+    document.getElementById('chartSubtitle').value = subtitle;
+    
+    // Set visibility option
+    const isVisible = header.style.display !== 'none';
+    document.getElementById('chartHeaderVisible').value = isVisible ? 'true' : 'false';
+    
+    // Get current classes to determine background and position
+    const classes = header.className;
+    if (classes.includes('bg-solid')) {
+        document.getElementById('chartHeaderBg').value = 'solid';
+    } else if (classes.includes('bg-transparent')) {
+        document.getElementById('chartHeaderBg').value = 'transparent';
+    } else {
+        document.getElementById('chartHeaderBg').value = 'gradient';
+    }
+    
+    if (classes.includes('top-right')) {
+        document.getElementById('chartHeaderPos').value = 'top-right';
+    } else if (classes.includes('bottom-left')) {
+        document.getElementById('chartHeaderPos').value = 'bottom-left';
+    } else if (classes.includes('bottom-right')) {
+        document.getElementById('chartHeaderPos').value = 'bottom-right';
+    } else {
+        document.getElementById('chartHeaderPos').value = 'top-left';
+    }
+    
+    document.getElementById('chartHeaderModal').style.display = 'block';
+}
+
+function closeChartHeaderModal() {
+    document.getElementById('chartHeaderModal').style.display = 'none';
+}
+
+// Chart header management
+function updateChartHeader() {
+    const title = document.getElementById('chartTitle').value || 'Family Finance Growth';
+    const subtitle = document.getElementById('chartSubtitle').value || 'Interactive financial projection';
+    const background = document.getElementById('chartHeaderBg').value || 'gradient';
+    const position = document.getElementById('chartHeaderPos').value || 'top-left';
+    const isVisible = document.getElementById('chartHeaderVisible').value === 'true';
+    
+    const header = document.querySelector('.chart-header');
+    const titleElement = header.querySelector('h1');
+    const subtitleElement = header.querySelector('p');
+    
+    // Update content
+    titleElement.textContent = title;
+    subtitleElement.textContent = subtitle;
+    
+    // Update position classes
+    header.className = `chart-header ${position} bg-${background}`;
+    
+    // Handle visibility
+    if (isVisible) {
+        header.style.display = 'block';
+    } else {
+        header.style.display = 'none';
+    }
+    
+    console.log('Chart header updated:', { title, subtitle, background, position, isVisible });
+}
+
+// Initialize chart header on page load
+function initializeChartHeader() {
+    // Set default values and update header
+    document.getElementById('chartHeaderVisible').value = 'true';
+    updateChartHeader();
+}
+
+// Realistic drawer management
+function toggleDrawer() {
+    const drawer = document.getElementById('drawer');
+    
+    if (drawer.classList.contains('open')) {
+        closeDrawer();
+    } else {
+        openDrawer();
+    }
+}
+
+function openDrawer() {
+    const drawer = document.getElementById('drawer');
+    drawer.classList.add('open');
+}
+
+function closeDrawer() {
+    const drawer = document.getElementById('drawer');
+    drawer.classList.remove('open');
+}
+
+// Close modals when clicking outside
+document.addEventListener('click', function(e) {
+    const drawer = document.getElementById('drawer');
+    const handle = document.querySelector('.drawer-handle');
+    const netWorthModal = document.getElementById('netWorthModal');
+    const chartHeaderModal = document.getElementById('chartHeaderModal');
+    
+    // Close drawer when clicking outside drawer and handle
+    if (!drawer.contains(e.target) && !handle.contains(e.target)) {
+        closeDrawer();
+    }
+    
+    // Close net worth modal when clicking outside
+    if (netWorthModal && e.target === netWorthModal) {
+        closeNetWorthModal();
+    }
+    
+    // Close chart header modal when clicking outside
+    if (chartHeaderModal && e.target === chartHeaderModal) {
+        closeChartHeaderModal();
+    }
+});
+
 // Helper function to format months into years and months
 function formatTimeDisplay(months) {
     if (months < 12) {
@@ -130,8 +373,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('startDate').value = currentMonth;
     document.getElementById('loanStartDate').value = currentMonth; // Default loan start date too
     
-    // Wait a bit for the DOM to be fully ready
+    // Initialize chart header
     setTimeout(() => {
+        initializeChartHeader();
+        
+        // Initialize and update chart
         initializeChart();
         updateChart();
     }, 100);
@@ -163,6 +409,11 @@ function initializeChart() {
             },
             rightPriceScale: {
                 borderColor: '#cccccc',
+                autoScale: true,
+                scaleMargins: {
+                    top: 0.1,  // Add 10% margin at the top
+                    bottom: 0.1  // Add 10% margin at the bottom
+                },
             },
             timeScale: {
                 borderColor: '#cccccc',
@@ -170,6 +421,8 @@ function initializeChart() {
                 secondsVisible: false,
                 fixLeftEdge: false,
                 fixRightEdge: false,
+                rightOffset: 5,
+                leftOffset: 5,
             },
         });
 
@@ -337,12 +590,49 @@ function calculateFinancialGrowth() {
     };
 }
 
+function addVehicleOverlay(time, goalAmount) {
+    console.log('Attempting to add vehicle overlay...');
+    
+    const overlay = document.getElementById('chartOverlay');
+    if (!overlay) {
+        console.log('No overlay element found');
+        return;
+    }
+    
+    // Clear any existing vehicle overlays
+    clearVehicleOverlays();
+    
+    // Create vehicle element
+    const vehicle = document.createElement('div');
+    vehicle.className = 'goal-vehicle';
+    vehicle.innerHTML = '🚐'; // RV for financial freedom!
+    
+    // Position at roughly 75% across and 30% down (approximate goal intersection)
+    vehicle.style.left = '75%';
+    vehicle.style.top = '30%';
+    vehicle.style.position = 'absolute';
+    
+    overlay.appendChild(vehicle);
+    console.log('🚐 RV overlay added - Time to hit the road!');
+}
+
+function clearVehicleOverlays() {
+    const overlay = document.getElementById('chartOverlay');
+    if (overlay) {
+        const vehicles = overlay.querySelectorAll('.goal-vehicle');
+        vehicles.forEach(vehicle => vehicle.remove());
+    }
+}
+
 function updateChart() {
     // Make sure chart is initialized
     if (!chart) {
         console.error('Chart not initialized');
         return;
     }
+    
+    // Clear any existing vehicle overlays
+    clearVehicleOverlays();
     
     console.log('Chart object type:', typeof chart);
     console.log('Chart methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(chart)));
@@ -424,12 +714,12 @@ function updateChart() {
             if (results.goalReachedMonth) {
                 const goalPoint = results.data.find(d => d.month === results.goalReachedMonth);
                 if (goalPoint) {
-                    chartSeries.savings.setMarkers([{
+                    chartSeries.netWorth.setMarkers([{
                         time: goalPoint.time,
                         position: 'aboveBar',
-                        color: '#ff9800',
-                        shape: 'circle',
-                        text: `🎯 Goal Reached! ${formatTimeDisplay(results.goalReachedMonth)}`
+                        color: '#f39c12',
+                        shape: 'arrowUp',
+                        text: `Goal Reached! ${formatTimeDisplay(results.goalReachedMonth)}`
                     }]);
                 }
             }
@@ -437,18 +727,38 @@ function updateChart() {
         
         // Add crosshair move handler for hover functionality
         chart.subscribeCrosshairMove(function(param) {
-            if (param.time) {
-                updateSummaryForTime(param.time);
-            } else {
-                // Show final values when not hovering
-                updateSummary(results);
+            // Only update the overlay if it's already visible (user has clicked the magnifying glass)
+            const overlay = document.getElementById('summaryOverlay');
+            if (overlay && overlay.classList.contains('show')) {
+                if (param.time) {
+                    // Update the overlay with hovered data
+                    updateSummaryForTime(param.time);
+                } else {
+                    // Show final values when not hovering over a specific point
+                    updateSummaryOverlay();
+                }
             }
         });
         
         // Update summary with final values initially
         updateSummary(results);
         
-        // Fit chart content
+        // Apply margins before fitting content
+        chart.applyOptions({
+            rightPriceScale: {
+                autoScale: true,
+                scaleMargins: {
+                    top: 0.15,  // Increased top margin
+                    bottom: 0.15  // Increased bottom margin
+                }
+            },
+            timeScale: {
+                rightOffset: 5,
+                leftOffset: 5,
+            }
+        });
+        
+        // Fit chart content with margins
         chart.timeScale().fitContent();
         
     } catch (error) {
@@ -463,71 +773,51 @@ function updateSummaryForTime(time) {
     
     if (!dataPoint) return;
     
-    const summaryContainer = document.getElementById('summary');
+    const summaryContainer = document.getElementById('summaryOverlayContent');
     const timeDisplay = formatTimeDisplay(dataPoint.month);
     
+    // Update the summary overlay title to show the time period
+    const titleElement = document.querySelector('.summary-overlay-title');
+    if (titleElement) {
+        titleElement.textContent = `📊 Financial Summary (${timeDisplay})`;
+    }
+    
+    // Create summary cards for the overlay
     summaryContainer.innerHTML = `
-        <div class="summary-card">
-            <h4>Savings (${timeDisplay})</h4>
-            <div class="value">$${dataPoint.savings.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        <div class="summary-overlay-card">
+            <h4>Savings</h4>
+            <div class="value">${formatCurrency(dataPoint.savings)}</div>
         </div>
-        <div class="summary-card">
-            <h4>Net Worth (${timeDisplay})</h4>
-            <div class="value">$${dataPoint.netWorth.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        <div class="summary-overlay-card">
+            <h4>Net Worth</h4>
+            <div class="value">${formatCurrency(dataPoint.netWorth)}</div>
         </div>
-        <div class="summary-card">
-            <h4>Contributions (${timeDisplay})</h4>
-            <div class="value">$${dataPoint.totalContributions.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        <div class="summary-overlay-card">
+            <h4>Contributions</h4>
+            <div class="value">${formatCurrency(dataPoint.totalContributions)}</div>
         </div>
-        <div class="summary-card">
-            <h4>Interest Earned (${timeDisplay})</h4>
-            <div class="value">$${dataPoint.interestEarned.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        <div class="summary-overlay-card">
+            <h4>Interest Earned</h4>
+            <div class="value">${formatCurrency(dataPoint.interestEarned)}</div>
         </div>
-        <div class="summary-card">
-            <h4>Loan Balance (${timeDisplay})</h4>
-            <div class="value">$${dataPoint.loanBalance.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        <div class="summary-overlay-card">
+            <h4>Loan Balance</h4>
+            <div class="value">${formatCurrency(dataPoint.loanBalance)}</div>
         </div>
-        <div class="summary-card">
-            <h4>Interest Paid (${timeDisplay})</h4>
-            <div class="value">$${dataPoint.totalInterestPaid.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+        <div class="summary-overlay-card">
+            <h4>Interest Paid</h4>
+            <div class="value">${formatCurrency(dataPoint.totalInterestPaid)}</div>
         </div>
     `;
 }
 
 function updateSummary(results) {
-    const summaryContainer = document.getElementById('summary');
-    
-    // Create goal achievement card if goal is set
-    const goalCard = results.goalAmount > 0 ? `
-        <div class="summary-card" style="background: ${results.goalReachedMonth ? '#e8f5e8' : '#fff3cd'};">
-            <h4>${results.goalReachedMonth ? '🎯 Goal Achieved' : '🎯 Goal Progress'}</h4>
-            <div class="value">${results.goalReachedMonth ? formatTimeDisplay(results.goalReachedMonth) : `${Math.round((results.finalSavings / results.goalAmount) * 100)}%`}</div>
-        </div>
-    ` : '';
-    
-    summaryContainer.innerHTML = `
-        ${goalCard}
-        <div class="summary-card">
-            <h4>${results.goalReachedMonth ? 'Savings at Goal' : 'Final Savings'}</h4>
-            <div class="value">$${results.finalSavings.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-        </div>
-        <div class="summary-card">
-            <h4>${results.goalReachedMonth ? 'Net Worth at Goal' : 'Final Net Worth'}</h4>
-            <div class="value">$${results.finalNetWorth.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-        </div>
-        <div class="summary-card">
-            <h4>Total Contributions</h4>
-            <div class="value">$${results.totalContributions.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-        </div>
-        <div class="summary-card">
-            <h4>Interest Earned</h4>
-            <div class="value">$${(results.finalSavings - results.totalContributions + results.totalPrincipalPaid).toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-        </div>
-        <div class="summary-card">
-            <h4>Remaining Loan Balance</h4>
-            <div class="value">$${results.totalLoanBalance.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-        </div>
-    `;
+    // Since we removed the bottom summary, we don't need to populate it
+    // But we should update the overlay if it's open
+    const overlay = document.getElementById('summaryOverlay');
+    if (overlay && overlay.classList.contains('show')) {
+        updateSummaryOverlay();
+    }
 }
 
 function addLoan() {
@@ -659,6 +949,13 @@ function exportToJSON() {
             goalAmount: parseFloat(document.getElementById('goalAmount').value) || 0,
             netWorthOverrides: netWorthOverrides
         },
+        chartHeader: {
+            title: document.getElementById('chartTitle').value || 'Family Finance Growth',
+            subtitle: document.getElementById('chartSubtitle').value || 'Interactive financial projection',
+            background: document.getElementById('chartHeaderBg').value || 'gradient',
+            position: document.getElementById('chartHeaderPos').value || 'top-left',
+            visible: document.getElementById('chartHeaderVisible').value === 'true'
+        },
         loans: loans.map(loan => ({
             amount: loan.amount,
             rate: loan.rate,
@@ -669,7 +966,7 @@ function exportToJSON() {
             isCustomPayment: loan.isCustomPayment
         })),
         exportDate: new Date().toISOString(),
-        version: "1.2"
+        version: "1.4"
     };
     
     const jsonString = JSON.stringify(data, null, 2);
@@ -719,6 +1016,16 @@ function loadDataFromJSON(data) {
             netWorthOverrides = data.savings.netWorthOverrides || data.savings.monthlyOverrides || {};
         }
         
+        // Load chart header settings
+        if (data.chartHeader) {
+            document.getElementById('chartTitle').value = data.chartHeader.title || 'Family Finance Growth';
+            document.getElementById('chartSubtitle').value = data.chartHeader.subtitle || 'Interactive financial projection';
+            document.getElementById('chartHeaderBg').value = data.chartHeader.background || 'gradient';
+            document.getElementById('chartHeaderPos').value = data.chartHeader.position || 'top-left';
+            document.getElementById('chartHeaderVisible').value = data.chartHeader.visible !== false ? 'true' : 'false';
+            updateChartHeader();
+        }
+        
         // Load loans data
         if (data.loans && Array.isArray(data.loans)) {
             const savingsStartDate = document.getElementById('startDate').value;
@@ -766,6 +1073,11 @@ function loadDataFromJSON(data) {
         alert('Error loading data: ' + error.message);
         console.error('Data loading error:', error);
     }
+}
+
+function testVehicleOverlay() {
+    console.log('Testing vehicle overlay...');
+    addVehicleOverlay(null, null);
 }
 
 function clearAllLoans() {

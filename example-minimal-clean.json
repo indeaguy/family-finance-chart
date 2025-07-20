@@ -1,0 +1,21 @@
+{
+  "savings": {
+    "startDate": "2024-01",
+    "initialAmount": 5000,
+    "monthlySavings": 800,
+    "interestRate": 6.5,
+    "timePeriod": 15,
+    "goalAmount": 250000,
+    "netWorthOverrides": {}
+  },
+  "chartHeader": {
+    "title": "Clean Savings Plan",
+    "subtitle": "Minimalist approach to wealth building",
+    "background": "transparent",
+    "position": "top-right",
+    "visible": true
+  },
+  "loans": [],
+  "exportDate": "2024-12-15T10:30:00.000Z",
+  "version": "1.4"
+}
