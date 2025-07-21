@@ -473,6 +473,7 @@ function calculateFinancialGrowth() {
     const netWorthOriginalData = []; // For comparison line
     const savingsData = [];
     const loanBalanceData = [];
+    const loanPayoffMarkers = []; // Track loan payoff dates
     
     let currentSavings = initialAmount;
     let totalLoanBalance = 0;
@@ -485,7 +486,9 @@ function calculateFinancialGrowth() {
     const loanPayments = loans.map(loan => ({
         ...loan,
         remainingBalance: loan.amount,
-        startMonth: loan.startMonth || 1
+        startMonth: loan.startMonth || 1,
+        isPaidOff: false,
+        payoffMonth: null
     }));
     
     // Create base date from start date input
@@ -514,6 +517,26 @@ function calculateFinancialGrowth() {
                 
                 // Ensure balance doesn't go negative
                 if (loan.remainingBalance < 0) loan.remainingBalance = 0;
+                
+                // Check if loan was just paid off this month
+                if (loan.remainingBalance === 0 && !loan.isPaidOff) {
+                    loan.isPaidOff = true;
+                    loan.payoffMonth = month;
+                    
+                    // Create a timestamp for the payoff marker
+                    const payoffDate = new Date(baseDate);
+                    payoffDate.setMonth(payoffDate.getMonth() + month - 1);
+                    const payoffTimestamp = Math.floor(payoffDate.getTime() / 1000);
+                    
+                    // Add to payoff markers
+                    loanPayoffMarkers.push({
+                        time: payoffTimestamp,
+                        position: 'aboveBar',
+                        color: '#f44336',
+                        shape: 'circle',
+                        text: `Loan Paid Off!`
+                    });
+                }
             }
             
             // Only add to total if balance is still positive
@@ -558,7 +581,11 @@ function calculateFinancialGrowth() {
         savingsData.push({ time: timestamp, value: currentSavings });
         netWorthData.push({ time: timestamp, value: netWorth });
         netWorthOriginalData.push({ time: timestamp, value: netWorthOriginal });
-        loanBalanceData.push({ time: timestamp, value: totalLoanBalance });
+        
+        // Only add loan balance data point if there's a balance or if this is the first point after a payoff
+        if (totalLoanBalance > 0 || (month > 0 && data[month-2] && data[month-2].loanBalance > 0)) {
+            loanBalanceData.push({ time: timestamp, value: totalLoanBalance });
+        }
         
         // Check if goal is reached (using actual net worth for goal checking)
         if (goalAmount > 0 && netWorth >= goalAmount && !goalReachedMonth) {
@@ -574,6 +601,7 @@ function calculateFinancialGrowth() {
         netWorthData,
         netWorthOriginalData,
         loanBalanceData,
+        loanPayoffMarkers,
         finalSavings: currentSavings,
         finalNetWorth: netWorthOverrides[goalReachedMonth || totalMonths] !== undefined ? 
             netWorthOverrides[goalReachedMonth || totalMonths] : 
@@ -692,6 +720,30 @@ function updateChart() {
                 title: 'Total Loan Balance'
             });
             chartSeries.loanBalance.setData(results.loanBalanceData);
+            
+            // Add loan payoff markers if any loans were paid off
+            if (results.loanPayoffMarkers && results.loanPayoffMarkers.length > 0) {
+                // Add markers to the loan balance line
+                chartSeries.loanBalance.setMarkers(results.loanPayoffMarkers);
+                
+                // Add vertical lines for each payoff date
+                results.loanPayoffMarkers.forEach(marker => {
+                    const payoffLine = chart.addLineSeries({
+                        color: '#f44336',
+                        lineWidth: 1,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        title: 'Loan Payoff'
+                    });
+                    
+                    // Create vertical line data
+                    const verticalLineData = [
+                        { time: marker.time, value: 0 },  // Bottom of chart
+                        { time: marker.time, value: results.savingsData.reduce((max, point) => Math.max(max, point.value), 0) * 1.1 }  // Top of chart
+                    ];
+                    
+                    payoffLine.setData(verticalLineData);
+                });
+            }
         }
         
         // Add goal line if goal is set
