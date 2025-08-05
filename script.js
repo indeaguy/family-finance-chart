@@ -20,10 +20,12 @@ function closeNetWorthOverrides() {
 
 function addNetWorthOverrideFromForm() {
     const overrideDate = document.getElementById('overrideDate').value;
-    const overrideAmount = parseFloat(document.getElementById('overrideAmount').value);
+    const overrideSavings = parseFloat(document.getElementById('overrideSavings').value);
+    const overrideLoanBalance = parseFloat(document.getElementById('overrideLoanBalance').value);
     
-    if (!overrideDate || !overrideAmount || isNaN(overrideAmount)) {
-        alert('Please enter both a date and amount');
+    // Both savings and loan balance must be provided (loan balance can be 0)
+    if (!overrideDate || isNaN(overrideSavings) || isNaN(overrideLoanBalance)) {
+        alert('Please enter a date, savings amount, and loan balance (can be 0)');
         return;
     }
     
@@ -47,11 +49,17 @@ function addNetWorthOverrideFromForm() {
         return;
     }
     
-    netWorthOverrides[monthDiff] = overrideAmount;
+    // Store both savings and loan balance
+    netWorthOverrides[monthDiff] = {
+        savings: overrideSavings,
+        loanBalance: overrideLoanBalance
+    };
+    
     updateNetWorthOverridesList();
     
     // Clear form
-    document.getElementById('overrideAmount').value = '';
+    document.getElementById('overrideSavings').value = '';
+    document.getElementById('overrideLoanBalance').value = '';
 }
 
 function addNetWorthOverride() {
@@ -69,23 +77,32 @@ function updateNetWorthOverridesList() {
     const overrideEntries = Object.entries(netWorthOverrides).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
     
     if (overrideEntries.length === 0) {
-        container.innerHTML = '<p style="color: #666; font-style: italic; text-align: center;">No net worth overrides set</p>';
+        container.innerHTML = '<p style="color: #666; font-style: italic; text-align: center;">No financial overrides set</p>';
         return;
     }
     
     const startDate = document.getElementById('startDate').value;
     const baseDate = startDate ? new Date(startDate + '-01') : new Date();
     
-    container.innerHTML = overrideEntries.map(([month, amount]) => {
+    container.innerHTML = overrideEntries.map(([month, override]) => {
         // Convert month number back to date for display
         const displayDate = new Date(baseDate);
         displayDate.setMonth(displayDate.getMonth() + parseInt(month) - 1);
         const dateStr = displayDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
         
+        // Handle both new format (object with savings and loanBalance) and old format (direct amount)
+        const savings = typeof override === 'object' ? override.savings : override;
+        const loanBalance = typeof override === 'object' ? override.loanBalance : 0;
+        const netWorth = savings - loanBalance;
+        
         return `
             <div class="override-row">
                 <div>${dateStr} (${formatTimeDisplay(parseInt(month))})</div>
-                <div>$${parseFloat(amount).toLocaleString()}</div>
+                <div class="override-details">
+                    <div>Savings: $${parseFloat(savings).toLocaleString()}</div>
+                    <div>Loans: $${parseFloat(loanBalance).toLocaleString()}</div>
+                    <div class="net-worth">Net Worth: $${parseFloat(netWorth).toLocaleString()}</div>
+                </div>
                 <button class="remove-override" onclick="removeNetWorthOverride(${month})">Remove</button>
             </div>
         `;
@@ -356,7 +373,7 @@ let chart;
 let loans = [];
 let chartData = [];
 let currentChartData = []; // Store current chart data for hover functionality
-let netWorthOverrides = {}; // Store net worth overrides {month: amount}
+let netWorthOverrides = {}; // Store overrides {month: {savings: amount, loanBalance: amount}}
 let chartSeries = {
     savings: null,
     netWorth: null,
@@ -552,11 +569,23 @@ function calculateFinancialGrowth() {
             currentSavings -= monthlyLoanPayment;
         }
         
-        // Calculate original net worth (without overrides)
-        const netWorthOriginal = currentSavings - totalLoanBalance;
+        // Apply overrides if they exist for this month
+        if (netWorthOverrides[month]) {
+            // Handle both new format (object with savings and loanBalance) and old format (direct amount)
+            if (typeof netWorthOverrides[month] === 'object') {
+                // New format - override both savings and loan balance
+                currentSavings = netWorthOverrides[month].savings;
+                totalLoanBalance = netWorthOverrides[month].loanBalance;
+            } else {
+                // Old format - calculate savings based on net worth and current loan balance
+                const oldNetWorth = netWorthOverrides[month];
+                currentSavings = oldNetWorth + totalLoanBalance;
+            }
+        }
         
-        // Apply net worth override if it exists for this month
-        const netWorth = netWorthOverrides[month] !== undefined ? netWorthOverrides[month] : netWorthOriginal;
+        // Calculate net worth based on current values (after any overrides)
+        const netWorthOriginal = currentSavings - totalLoanBalance;
+        const netWorth = netWorthOriginal; // No separate override for net worth anymore
         
         // Create date for this month
         const date = new Date(baseDate);
@@ -574,7 +603,7 @@ function calculateFinancialGrowth() {
             totalContributions: initialAmount + (monthlySavings * month),
             interestEarned: currentSavings - (initialAmount + (monthlySavings * month)) + totalPrincipalPaid,
             totalInterestPaid: totalInterestPaid,
-            netWorthOverride: netWorthOverrides[month]
+            override: netWorthOverrides[month] ? true : false
         };
         
         data.push(monthData);
@@ -603,9 +632,7 @@ function calculateFinancialGrowth() {
         loanBalanceData,
         loanPayoffMarkers,
         finalSavings: currentSavings,
-        finalNetWorth: netWorthOverrides[goalReachedMonth || totalMonths] !== undefined ? 
-            netWorthOverrides[goalReachedMonth || totalMonths] : 
-            (currentSavings - totalLoanBalance),
+        finalNetWorth: currentSavings - totalLoanBalance,
         finalNetWorthOriginal: currentSavings - totalLoanBalance,
         totalLoanBalance,
         totalInterestPaid,
@@ -999,7 +1026,7 @@ function exportToJSON() {
             interestRate: parseFloat(document.getElementById('interestRate').value) || 0,
             timePeriod: parseInt(document.getElementById('timePeriod').value) || 1,
             goalAmount: parseFloat(document.getElementById('goalAmount').value) || 0,
-            netWorthOverrides: netWorthOverrides
+            financialOverrides: netWorthOverrides
         },
         chartHeader: {
             title: document.getElementById('chartTitle').value || 'Family Finance Growth',
@@ -1064,8 +1091,20 @@ function loadDataFromJSON(data) {
             document.getElementById('timePeriod').value = data.savings.timePeriod || 1;
             document.getElementById('goalAmount').value = data.savings.goalAmount || '';
             
-            // Load net worth overrides (new format) or monthly overrides (backward compatibility)
-            netWorthOverrides = data.savings.netWorthOverrides || data.savings.monthlyOverrides || {};
+            // Load financial overrides with backward compatibility
+            netWorthOverrides = data.savings.financialOverrides || data.savings.netWorthOverrides || data.savings.monthlyOverrides || {};
+            
+            // Convert old format (direct amount) to new format (object with savings and loanBalance)
+            Object.entries(netWorthOverrides).forEach(([month, value]) => {
+                if (typeof value !== 'object') {
+                    // This is old format - convert to new format
+                    // Assume the loan balance was 0 in the old format
+                    netWorthOverrides[month] = {
+                        savings: value,
+                        loanBalance: 0
+                    };
+                }
+            });
         }
         
         // Load chart header settings

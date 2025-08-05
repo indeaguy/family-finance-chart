@@ -1111,7 +1111,7 @@
         }
         .override-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 60px;
+            grid-template-columns: 1fr 1.5fr 60px;
             gap: 10px;
             align-items: center;
             margin: 8px 0;
@@ -1122,6 +1122,22 @@
             color: #ecf0f1;
             font-weight: 600;
             font-size: 9px;
+        }
+        
+        .override-row .override-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        
+        .override-row .override-details div {
+            font-size: 11px;
+        }
+        
+        .override-row .override-details .net-worth {
+            font-weight: bold;
+            color: #3498db;
+            margin-top: 3px;
         }
         .override-row input {
             width: auto;
@@ -1293,18 +1309,20 @@
     <div id="netWorthOverridesModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📈 Net Worth Overrides</h2>
+                <h2>📈 Financial Overrides</h2>
                 <span class="close" onclick="closeNetWorthOverrides()">&times;</span>
             </div>
             <div style="margin-bottom: 15px;">
-                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px;">
                     <label>Override Date:</label>
                     <input type="month" id="overrideDate" style="width: 150px;">
-                    <label>Net Worth ($):</label>
-                    <input type="number" id="overrideAmount" placeholder="Amount" style="width: 120px;">
+                    <label>Total Savings ($):</label>
+                    <input type="number" id="overrideSavings" placeholder="Savings amount" style="width: 120px;">
+                    <label>Total Loan Balance ($):</label>
+                    <input type="number" id="overrideLoanBalance" placeholder="Loan balance" style="width: 120px;">
                     <button onclick="addNetWorthOverrideFromForm()">+ Add</button>
                 </div>
-                <div class="help-text">Override net worth for specific months (asset purchases, windfalls, market changes, etc.)</div>
+                <div class="help-text">Override both savings and loan balance for specific months (asset purchases, windfalls, market changes, etc.)</div>
             </div>
             <div id="netWorthOverridesList">
                 <!-- Override rows will be populated here -->
