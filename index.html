@@ -681,15 +681,16 @@
             overflow: visible;
             box-shadow: 8px 8px 0px #8e44ad;
             padding: 0;
-            height: 100%;
+            flex: 1; /* Take up remaining space */
             display: flex;
             flex-direction: column;
+            min-height: 0; /* Allow flex shrinking */
         }
         
         #chart {
             width: 100%;
             flex: 1;
-            min-height: 300px;
+            min-height: 400px; /* Minimum height for usability */
         }
         
         .chart-header {
@@ -1381,6 +1382,13 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Load JavaScript modules in dependency order -->
+    <script src="js/utilities.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/chart-manager.js"></script>
+    <script src="js/data-manager.js"></script>
+    <script src="js/ui-manager.js"></script>
+    <script src="js/override-manager.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

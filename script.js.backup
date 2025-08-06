@@ -1,0 +1,1211 @@
+function showNetWorthOverrides() {
+    document.getElementById('netWorthOverridesModal').style.display = 'block';
+    updateNetWorthOverridesList();
+    
+    // Set default override date to current start date or current month
+    const startDate = document.getElementById('startDate').value;
+    if (startDate) {
+        document.getElementById('overrideDate').value = startDate;
+    } else {
+        const now = new Date();
+        const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+        document.getElementById('overrideDate').value = currentMonth;
+    }
+}
+
+function closeNetWorthOverrides() {
+    document.getElementById('netWorthOverridesModal').style.display = 'none';
+    updateChart(); // Refresh chart when closing modal
+}
+
+function addNetWorthOverrideFromForm() {
+    const overrideDate = document.getElementById('overrideDate').value;
+    const overrideSavings = parseFloat(document.getElementById('overrideSavings').value);
+    const overrideLoanBalance = parseFloat(document.getElementById('overrideLoanBalance').value);
+    
+    // Both savings and loan balance must be provided (loan balance can be 0)
+    if (!overrideDate || isNaN(overrideSavings) || isNaN(overrideLoanBalance)) {
+        alert('Please enter a date, savings amount, and loan balance (can be 0)');
+        return;
+    }
+    
+    // Convert date to month number relative to start date
+    const startDate = document.getElementById('startDate').value;
+    const baseDate = startDate ? new Date(startDate + '-01') : new Date();
+    const overrideDateObj = new Date(overrideDate + '-01');
+    
+    // Calculate month difference
+    const monthDiff = (overrideDateObj.getFullYear() - baseDate.getFullYear()) * 12 + 
+                     (overrideDateObj.getMonth() - baseDate.getMonth()) + 1;
+    
+    if (monthDiff < 1) {
+        alert('Override date must be after the start date');
+        return;
+    }
+    
+    const maxMonths = parseInt(document.getElementById('timePeriod').value) * 12;
+    if (monthDiff > maxMonths) {
+        alert(`Override date must be within the ${maxMonths} month time period`);
+        return;
+    }
+    
+    // Store both savings and loan balance
+    netWorthOverrides[monthDiff] = {
+        savings: overrideSavings,
+        loanBalance: overrideLoanBalance
+    };
+    
+    updateNetWorthOverridesList();
+    
+    // Clear form
+    document.getElementById('overrideSavings').value = '';
+    document.getElementById('overrideLoanBalance').value = '';
+}
+
+function addNetWorthOverride() {
+    // Legacy function - now just calls the form version
+    addNetWorthOverrideFromForm();
+}
+
+function removeNetWorthOverride(month) {
+    delete netWorthOverrides[month];
+    updateNetWorthOverridesList();
+}
+
+function updateNetWorthOverridesList() {
+    const container = document.getElementById('netWorthOverridesList');
+    const overrideEntries = Object.entries(netWorthOverrides).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+    
+    if (overrideEntries.length === 0) {
+        container.innerHTML = '<p style="color: #666; font-style: italic; text-align: center;">No financial overrides set</p>';
+        return;
+    }
+    
+    const startDate = document.getElementById('startDate').value;
+    const baseDate = startDate ? new Date(startDate + '-01') : new Date();
+    
+    container.innerHTML = overrideEntries.map(([month, override]) => {
+        // Convert month number back to date for display
+        const displayDate = new Date(baseDate);
+        displayDate.setMonth(displayDate.getMonth() + parseInt(month) - 1);
+        const dateStr = displayDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        
+        // Handle both new format (object with savings and loanBalance) and old format (direct amount)
+        const savings = typeof override === 'object' ? override.savings : override;
+        const loanBalance = typeof override === 'object' ? override.loanBalance : 0;
+        const netWorth = savings - loanBalance;
+        
+        return `
+            <div class="override-row">
+                <div>${dateStr} (${formatTimeDisplay(parseInt(month))})</div>
+                <div class="override-details">
+                    <div>Savings: $${parseFloat(savings).toLocaleString()}</div>
+                    <div>Loans: $${parseFloat(loanBalance).toLocaleString()}</div>
+                    <div class="net-worth">Net Worth: $${parseFloat(netWorth).toLocaleString()}</div>
+                </div>
+                <button class="remove-override" onclick="removeNetWorthOverride(${month})">Remove</button>
+            </div>
+        `;
+    }).join('');
+}
+
+// Utility function for debouncing input events
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Utility function to format currency values
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(value);
+}
+
+// Summary overlay management
+function toggleSummaryOverlay() {
+    const overlay = document.getElementById('summaryOverlay');
+    if (overlay.classList.contains('show')) {
+        closeSummaryOverlay();
+    } else {
+        showSummaryOverlay();
+    }
+}
+
+function showSummaryOverlay() {
+    const overlay = document.getElementById('summaryOverlay');
+    updateSummaryOverlay();
+    overlay.classList.add('show');
+}
+
+function closeSummaryOverlay() {
+    const overlay = document.getElementById('summaryOverlay');
+    overlay.classList.remove('show');
+}
+
+function updateSummaryOverlay() {
+    const container = document.getElementById('summaryOverlayContent');
+    if (!container) return;
+    
+    // Get current values
+    const initialAmount = parseFloat(document.getElementById('initialAmount').value) || 0;
+    const monthlySavings = parseFloat(document.getElementById('monthlySavings').value) || 0;
+    const interestRate = parseFloat(document.getElementById('interestRate').value) || 0;
+    const timePeriod = parseInt(document.getElementById('timePeriod').value) || 1;
+    const goalAmount = parseFloat(document.getElementById('goalAmount').value) || 0;
+    
+    // Calculate final values
+    const monthlyRate = interestRate / 100 / 12;
+    const totalMonths = timePeriod * 12;
+    
+    let finalSavings = initialAmount;
+    if (monthlyRate > 0) {
+        finalSavings = initialAmount * Math.pow(1 + monthlyRate, totalMonths) + 
+                      monthlySavings * ((Math.pow(1 + monthlyRate, totalMonths) - 1) / monthlyRate);
+    } else {
+        finalSavings = initialAmount + (monthlySavings * totalMonths);
+    }
+    
+    // Calculate total loan balance
+    let totalLoanBalance = 0;
+    loans.forEach(loan => {
+        const loanMonths = Math.min(totalMonths - loan.startMonth + 1, loan.term * 12);
+        if (loanMonths > 0) {
+            const monthlyRate = loan.rate / 100 / 12;
+            if (monthlyRate > 0) {
+                const remaining = loan.amount * Math.pow(1 + monthlyRate, loanMonths) - 
+                                loan.monthlyPayment * ((Math.pow(1 + monthlyRate, loanMonths) - 1) / monthlyRate);
+                totalLoanBalance += Math.max(0, remaining);
+            } else {
+                totalLoanBalance += Math.max(0, loan.amount - (loan.monthlyPayment * loanMonths));
+            }
+        }
+    });
+    
+    const netWorth = finalSavings - totalLoanBalance;
+    const totalContributions = initialAmount + (monthlySavings * totalMonths);
+    const totalInterest = finalSavings - totalContributions;
+    
+    // Reset the title to default
+    const titleElement = document.querySelector('.summary-overlay-title');
+    if (titleElement) {
+        titleElement.textContent = '📊 Financial Summary';
+    }
+    
+    // Create summary cards
+    container.innerHTML = `
+        <div class="summary-overlay-card">
+            <h4>Final Savings</h4>
+            <div class="value">${formatCurrency(finalSavings)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Net Worth</h4>
+            <div class="value">${formatCurrency(netWorth)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Total Interest</h4>
+            <div class="value">${formatCurrency(totalInterest)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Loan Balance</h4>
+            <div class="value">${formatCurrency(totalLoanBalance)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Monthly Savings</h4>
+            <div class="value">${formatCurrency(monthlySavings)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Time Period</h4>
+            <div class="value">${timePeriod} years</div>
+        </div>
+    `;
+}
+
+// Chart header modal management
+function showChartHeaderModal() {
+    // Populate modal with current values
+    const header = document.querySelector('.chart-header');
+    const title = header.querySelector('h1').textContent;
+    const subtitle = header.querySelector('p').textContent;
+    
+    document.getElementById('chartTitle').value = title;
+    document.getElementById('chartSubtitle').value = subtitle;
+    
+    // Set visibility option
+    const isVisible = header.style.display !== 'none';
+    document.getElementById('chartHeaderVisible').value = isVisible ? 'true' : 'false';
+    
+    // Get current classes to determine background and position
+    const classes = header.className;
+    if (classes.includes('bg-solid')) {
+        document.getElementById('chartHeaderBg').value = 'solid';
+    } else if (classes.includes('bg-transparent')) {
+        document.getElementById('chartHeaderBg').value = 'transparent';
+    } else {
+        document.getElementById('chartHeaderBg').value = 'gradient';
+    }
+    
+    if (classes.includes('top-right')) {
+        document.getElementById('chartHeaderPos').value = 'top-right';
+    } else if (classes.includes('bottom-left')) {
+        document.getElementById('chartHeaderPos').value = 'bottom-left';
+    } else if (classes.includes('bottom-right')) {
+        document.getElementById('chartHeaderPos').value = 'bottom-right';
+    } else {
+        document.getElementById('chartHeaderPos').value = 'top-left';
+    }
+    
+    document.getElementById('chartHeaderModal').style.display = 'block';
+}
+
+function closeChartHeaderModal() {
+    document.getElementById('chartHeaderModal').style.display = 'none';
+}
+
+// Chart header management
+function updateChartHeader() {
+    const title = document.getElementById('chartTitle').value || 'Family Finance Growth';
+    const subtitle = document.getElementById('chartSubtitle').value || 'Interactive financial projection';
+    const background = document.getElementById('chartHeaderBg').value || 'gradient';
+    const position = document.getElementById('chartHeaderPos').value || 'top-left';
+    const isVisible = document.getElementById('chartHeaderVisible').value === 'true';
+    
+    const header = document.querySelector('.chart-header');
+    const titleElement = header.querySelector('h1');
+    const subtitleElement = header.querySelector('p');
+    
+    // Update content
+    titleElement.textContent = title;
+    subtitleElement.textContent = subtitle;
+    
+    // Update position classes
+    header.className = `chart-header ${position} bg-${background}`;
+    
+    // Handle visibility
+    if (isVisible) {
+        header.style.display = 'block';
+    } else {
+        header.style.display = 'none';
+    }
+    
+    console.log('Chart header updated:', { title, subtitle, background, position, isVisible });
+}
+
+// Initialize chart header on page load
+function initializeChartHeader() {
+    // Set default values and update header
+    document.getElementById('chartHeaderVisible').value = 'true';
+    updateChartHeader();
+}
+
+// Realistic drawer management
+function toggleDrawer() {
+    const drawer = document.getElementById('drawer');
+    
+    if (drawer.classList.contains('open')) {
+        closeDrawer();
+    } else {
+        openDrawer();
+    }
+}
+
+function openDrawer() {
+    const drawer = document.getElementById('drawer');
+    drawer.classList.add('open');
+}
+
+function closeDrawer() {
+    const drawer = document.getElementById('drawer');
+    drawer.classList.remove('open');
+}
+
+// Close modals when clicking outside
+document.addEventListener('click', function(e) {
+    const drawer = document.getElementById('drawer');
+    const handle = document.querySelector('.drawer-handle');
+    const netWorthModal = document.getElementById('netWorthModal');
+    const chartHeaderModal = document.getElementById('chartHeaderModal');
+    
+    // Close drawer when clicking outside drawer and handle
+    if (!drawer.contains(e.target) && !handle.contains(e.target)) {
+        closeDrawer();
+    }
+    
+    // Close net worth modal when clicking outside
+    if (netWorthModal && e.target === netWorthModal) {
+        closeNetWorthModal();
+    }
+    
+    // Close chart header modal when clicking outside
+    if (chartHeaderModal && e.target === chartHeaderModal) {
+        closeChartHeaderModal();
+    }
+});
+
+// Helper function to format months into years and months
+function formatTimeDisplay(months) {
+    if (months < 12) {
+        return `${months} month${months === 1 ? '' : 's'}`;
+    }
+    
+    const years = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+    
+    if (remainingMonths === 0) {
+        return `${years} year${years === 1 ? '' : 's'}`;
+    }
+    
+    return `${years} year${years === 1 ? '' : 's'}, ${remainingMonths} month${remainingMonths === 1 ? '' : 's'}`;
+}
+
+// Global variables
+let chart;
+let loans = [];
+let chartData = [];
+let currentChartData = []; // Store current chart data for hover functionality
+let netWorthOverrides = {}; // Store overrides {month: {savings: amount, loanBalance: amount}}
+let chartSeries = {
+    savings: null,
+    netWorth: null,
+    loanBalance: null,
+    goalLine: null,
+    netWorthOriginal: null // For comparison line
+};
+
+// Initialize the chart when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default start date to current month
+    const now = new Date();
+    const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    document.getElementById('startDate').value = currentMonth;
+    document.getElementById('loanStartDate').value = currentMonth; // Default loan start date too
+    
+    // Initialize chart header
+    setTimeout(() => {
+        initializeChartHeader();
+        
+        // Initialize and update chart
+        initializeChart();
+        updateChart();
+    }, 100);
+});
+
+function initializeChart() {
+    const chartContainer = document.getElementById('chart');
+    
+    // Make sure the container exists and has dimensions
+    if (!chartContainer) {
+        console.error('Chart container not found');
+        return;
+    }
+    
+    try {
+        chart = LightweightCharts.createChart(chartContainer, {
+            width: chartContainer.clientWidth || 800,
+            height: chartContainer.clientHeight || 500,
+            layout: {
+                background: { color: '#ffffff' },
+                textColor: '#333',
+            },
+            grid: {
+                vertLines: { color: '#f0f0f0' },
+                horzLines: { color: '#f0f0f0' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            rightPriceScale: {
+                borderColor: '#cccccc',
+                autoScale: true,
+                scaleMargins: {
+                    top: 0.1,  // Add 10% margin at the top
+                    bottom: 0.1  // Add 10% margin at the bottom
+                },
+            },
+            timeScale: {
+                borderColor: '#cccccc',
+                timeVisible: true,
+                secondsVisible: false,
+                fixLeftEdge: false,
+                fixRightEdge: false,
+                rightOffset: 5,
+                leftOffset: 5,
+            },
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (chart && chartContainer) {
+                chart.applyOptions({ 
+                    width: chartContainer.clientWidth,
+                    height: chartContainer.clientHeight 
+                });
+            }
+        });
+        
+        console.log('Chart initialized successfully');
+        console.log('Chart object:', chart);
+        console.log('Available methods:', Object.getOwnPropertyNames(chart));
+        
+    } catch (error) {
+        console.error('Error initializing chart:', error);
+    }
+}
+
+function calculateMonthlyPayment(principal, rate, term) {
+    const monthlyRate = rate / 100 / 12;
+    const numPayments = term * 12;
+    
+    if (monthlyRate === 0) {
+        return principal / numPayments;
+    }
+    
+    return principal * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+           (Math.pow(1 + monthlyRate, numPayments) - 1);
+}
+
+function calculateFinancialGrowth() {
+    const initialAmount = parseFloat(document.getElementById('initialAmount').value) || 0;
+    const monthlySavings = parseFloat(document.getElementById('monthlySavings').value) || 0;
+    const annualRate = parseFloat(document.getElementById('interestRate').value) || 0;
+    const years = parseInt(document.getElementById('timePeriod').value) || 1;
+    const goalAmount = parseFloat(document.getElementById('goalAmount').value) || 0;
+    const startDate = document.getElementById('startDate').value;
+    
+    const monthlyRate = annualRate / 100 / 12;
+    const totalMonths = years * 12;
+    
+    const data = [];
+    const netWorthData = [];
+    const netWorthOriginalData = []; // For comparison line
+    const savingsData = [];
+    const loanBalanceData = [];
+    const loanPayoffMarkers = []; // Track loan payoff dates
+    
+    let currentSavings = initialAmount;
+    let totalLoanBalance = 0;
+    let totalInterestPaid = 0;
+    let totalPrincipalPaid = 0;
+    let goalReachedMonth = null;
+    let hasOverrides = Object.keys(netWorthOverrides).length > 0;
+    
+    // Calculate loan payments for each active loan
+    const loanPayments = loans.map(loan => ({
+        ...loan,
+        remainingBalance: loan.amount,
+        startMonth: loan.startMonth || 1,
+        isPaidOff: false,
+        payoffMonth: null
+    }));
+    
+    // Create base date from start date input
+    const baseDate = startDate ? new Date(startDate + '-01') : new Date();
+    
+    for (let month = 1; month <= totalMonths; month++) {
+        // Add monthly savings with compound interest
+        currentSavings = currentSavings * (1 + monthlyRate) + monthlySavings;
+        
+        // Calculate loan payments and balances
+        let monthlyLoanPayment = 0;
+        let currentTotalLoanBalance = 0;
+        
+        loanPayments.forEach(loan => {
+            if (month >= loan.startMonth && loan.remainingBalance > 0) {
+                const monthlyInterest = loan.remainingBalance * (loan.rate / 100 / 12);
+                const monthlyPrincipal = Math.min(loan.monthlyPayment - monthlyInterest, loan.remainingBalance);
+                
+                // Calculate actual payment (could be less than full payment for final month)
+                const actualPayment = monthlyInterest + monthlyPrincipal;
+                
+                loan.remainingBalance -= monthlyPrincipal;
+                monthlyLoanPayment += actualPayment;
+                totalInterestPaid += monthlyInterest;
+                totalPrincipalPaid += monthlyPrincipal;
+                
+                // Ensure balance doesn't go negative
+                if (loan.remainingBalance < 0) loan.remainingBalance = 0;
+                
+                // Check if loan was just paid off this month
+                if (loan.remainingBalance === 0 && !loan.isPaidOff) {
+                    loan.isPaidOff = true;
+                    loan.payoffMonth = month;
+                    
+                    // Create a timestamp for the payoff marker
+                    const payoffDate = new Date(baseDate);
+                    payoffDate.setMonth(payoffDate.getMonth() + month - 1);
+                    const payoffTimestamp = Math.floor(payoffDate.getTime() / 1000);
+                    
+                    // Add to payoff markers
+                    loanPayoffMarkers.push({
+                        time: payoffTimestamp,
+                        position: 'aboveBar',
+                        color: '#f44336',
+                        shape: 'circle',
+                        text: `Loan Paid Off!`
+                    });
+                }
+            }
+            
+            // Only add to total if balance is still positive
+            if (loan.remainingBalance > 0) {
+                currentTotalLoanBalance += loan.remainingBalance;
+            }
+        });
+        
+        totalLoanBalance = currentTotalLoanBalance;
+        
+        // Subtract loan payments from savings (if we have enough)
+        if (currentSavings >= monthlyLoanPayment) {
+            currentSavings -= monthlyLoanPayment;
+        }
+        
+        // Apply overrides if they exist for this month
+        if (netWorthOverrides[month]) {
+            // Handle both new format (object with savings and loanBalance) and old format (direct amount)
+            if (typeof netWorthOverrides[month] === 'object') {
+                // New format - override both savings and loan balance
+                currentSavings = netWorthOverrides[month].savings;
+                totalLoanBalance = netWorthOverrides[month].loanBalance;
+            } else {
+                // Old format - calculate savings based on net worth and current loan balance
+                const oldNetWorth = netWorthOverrides[month];
+                currentSavings = oldNetWorth + totalLoanBalance;
+            }
+        }
+        
+        // Calculate net worth based on current values (after any overrides)
+        const netWorthOriginal = currentSavings - totalLoanBalance;
+        const netWorth = netWorthOriginal; // No separate override for net worth anymore
+        
+        // Create date for this month
+        const date = new Date(baseDate);
+        date.setMonth(date.getMonth() + month - 1);
+        const timestamp = date.getTime() / 1000;
+        
+        // Store detailed data for hover functionality
+        const monthData = {
+            time: timestamp,
+            month: month,
+            savings: currentSavings,
+            netWorth: netWorth,
+            netWorthOriginal: netWorthOriginal,
+            loanBalance: totalLoanBalance,
+            totalContributions: initialAmount + (monthlySavings * month),
+            interestEarned: currentSavings - (initialAmount + (monthlySavings * month)) + totalPrincipalPaid,
+            totalInterestPaid: totalInterestPaid,
+            override: netWorthOverrides[month] ? true : false
+        };
+        
+        data.push(monthData);
+        savingsData.push({ time: timestamp, value: currentSavings });
+        netWorthData.push({ time: timestamp, value: netWorth });
+        netWorthOriginalData.push({ time: timestamp, value: netWorthOriginal });
+        
+        // Only add loan balance data point if there's a balance or if this is the first point after a payoff
+        if (totalLoanBalance > 0 || (month > 0 && data[month-2] && data[month-2].loanBalance > 0)) {
+            loanBalanceData.push({ time: timestamp, value: totalLoanBalance });
+        }
+        
+        // Check if goal is reached (using actual net worth for goal checking)
+        if (goalAmount > 0 && netWorth >= goalAmount && !goalReachedMonth) {
+            goalReachedMonth = month;
+            // Stop the chart here if goal is reached
+            break;
+        }
+    }
+    
+    return {
+        data,
+        savingsData,
+        netWorthData,
+        netWorthOriginalData,
+        loanBalanceData,
+        loanPayoffMarkers,
+        finalSavings: currentSavings,
+        finalNetWorth: currentSavings - totalLoanBalance,
+        finalNetWorthOriginal: currentSavings - totalLoanBalance,
+        totalLoanBalance,
+        totalInterestPaid,
+        totalPrincipalPaid,
+        totalContributions: initialAmount + (monthlySavings * (goalReachedMonth || totalMonths)),
+        goalAmount: goalAmount,
+        goalReachedMonth: goalReachedMonth,
+        actualMonths: goalReachedMonth || totalMonths,
+        hasOverrides: hasOverrides
+    };
+}
+
+function addVehicleOverlay(time, goalAmount) {
+    console.log('Attempting to add vehicle overlay...');
+    
+    const overlay = document.getElementById('chartOverlay');
+    if (!overlay) {
+        console.log('No overlay element found');
+        return;
+    }
+    
+    // Clear any existing vehicle overlays
+    clearVehicleOverlays();
+    
+    // Create vehicle element
+    const vehicle = document.createElement('div');
+    vehicle.className = 'goal-vehicle';
+    vehicle.innerHTML = '🚐'; // RV for financial freedom!
+    
+    // Position at roughly 75% across and 30% down (approximate goal intersection)
+    vehicle.style.left = '75%';
+    vehicle.style.top = '30%';
+    vehicle.style.position = 'absolute';
+    
+    overlay.appendChild(vehicle);
+    console.log('🚐 RV overlay added - Time to hit the road!');
+}
+
+function clearVehicleOverlays() {
+    const overlay = document.getElementById('chartOverlay');
+    if (overlay) {
+        const vehicles = overlay.querySelectorAll('.goal-vehicle');
+        vehicles.forEach(vehicle => vehicle.remove());
+    }
+}
+
+function updateChart() {
+    // Make sure chart is initialized
+    if (!chart) {
+        console.error('Chart not initialized');
+        return;
+    }
+    
+    // Clear any existing vehicle overlays
+    clearVehicleOverlays();
+    
+    console.log('Chart object type:', typeof chart);
+    console.log('Chart methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(chart)));
+    
+    const results = calculateFinancialGrowth();
+    
+    // Store data for hover functionality
+    currentChartData = results.data;
+    
+    // Remove existing series if they exist
+    Object.keys(chartSeries).forEach(key => {
+        if (chartSeries[key]) {
+            chart.removeSeries(chartSeries[key]);
+            chartSeries[key] = null;
+        }
+    });
+    
+    try {
+        // Test if the method exists
+        if (typeof chart.addLineSeries !== 'function') {
+            console.error('addLineSeries is not a function. Available methods:', Object.keys(chart));
+            return;
+        }
+        
+        // Add savings line (green)
+        chartSeries.savings = chart.addLineSeries({
+            color: '#26a69a',
+            lineWidth: 3,
+            title: 'Total Savings'
+        });
+        chartSeries.savings.setData(results.savingsData);
+        
+        // Add net worth line (blue)
+        chartSeries.netWorth = chart.addLineSeries({
+            color: '#2196f3',
+            lineWidth: 3,
+            title: 'Net Worth' + (results.hasOverrides ? ' (With Overrides)' : '')
+        });
+        chartSeries.netWorth.setData(results.netWorthData);
+        
+        // Add comparison line if there are overrides
+        if (results.hasOverrides) {
+            chartSeries.netWorthOriginal = chart.addLineSeries({
+                color: '#2196f3',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                title: 'Original Net Worth (No Overrides)'
+            });
+            chartSeries.netWorthOriginal.setData(results.netWorthOriginalData);
+        }
+        
+        // Add loan balance line (red) if there are loans
+        if (loans.length > 0) {
+            chartSeries.loanBalance = chart.addLineSeries({
+                color: '#f44336',
+                lineWidth: 2,
+                title: 'Total Loan Balance'
+            });
+            chartSeries.loanBalance.setData(results.loanBalanceData);
+            
+            // Add loan payoff markers if any loans were paid off
+            if (results.loanPayoffMarkers && results.loanPayoffMarkers.length > 0) {
+                // Add markers to the loan balance line
+                chartSeries.loanBalance.setMarkers(results.loanPayoffMarkers);
+                
+                // Add vertical lines for each payoff date
+                results.loanPayoffMarkers.forEach(marker => {
+                    const payoffLine = chart.addLineSeries({
+                        color: '#f44336',
+                        lineWidth: 1,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        title: 'Loan Payoff'
+                    });
+                    
+                    // Create vertical line data
+                    const verticalLineData = [
+                        { time: marker.time, value: 0 },  // Bottom of chart
+                        { time: marker.time, value: results.savingsData.reduce((max, point) => Math.max(max, point.value), 0) * 1.1 }  // Top of chart
+                    ];
+                    
+                    payoffLine.setData(verticalLineData);
+                });
+            }
+        }
+        
+        // Add goal line if goal is set
+        if (results.goalAmount > 0) {
+            chartSeries.goalLine = chart.addLineSeries({
+                color: '#ff9800',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                title: `Goal: $${results.goalAmount.toLocaleString()}`
+            });
+            
+            // Create horizontal line data for the goal
+            const goalLineData = results.savingsData.map(point => ({
+                time: point.time,
+                value: results.goalAmount
+            }));
+            chartSeries.goalLine.setData(goalLineData);
+            
+            // Add goal marker if goal is reached
+            if (results.goalReachedMonth) {
+                const goalPoint = results.data.find(d => d.month === results.goalReachedMonth);
+                if (goalPoint) {
+                    chartSeries.netWorth.setMarkers([{
+                        time: goalPoint.time,
+                        position: 'aboveBar',
+                        color: '#f39c12',
+                        shape: 'arrowUp',
+                        text: `Goal Reached! ${formatTimeDisplay(results.goalReachedMonth)}`
+                    }]);
+                }
+            }
+        }
+        
+        // Add crosshair move handler for hover functionality
+        chart.subscribeCrosshairMove(function(param) {
+            // Only update the overlay if it's already visible (user has clicked the magnifying glass)
+            const overlay = document.getElementById('summaryOverlay');
+            if (overlay && overlay.classList.contains('show')) {
+                if (param.time) {
+                    // Update the overlay with hovered data
+                    updateSummaryForTime(param.time);
+                } else {
+                    // Show final values when not hovering over a specific point
+                    updateSummaryOverlay();
+                }
+            }
+        });
+        
+        // Update summary with final values initially
+        updateSummary(results);
+        
+        // Apply margins before fitting content
+        chart.applyOptions({
+            rightPriceScale: {
+                autoScale: true,
+                scaleMargins: {
+                    top: 0.15,  // Increased top margin
+                    bottom: 0.15  // Increased bottom margin
+                }
+            },
+            timeScale: {
+                rightOffset: 5,
+                leftOffset: 5,
+            }
+        });
+        
+        // Fit chart content with margins
+        chart.timeScale().fitContent();
+        
+    } catch (error) {
+        console.error('Error updating chart:', error);
+        console.error('Error details:', error.stack);
+    }
+}
+
+function updateSummaryForTime(time) {
+    // Find the data point closest to the hovered time
+    const dataPoint = currentChartData.find(point => Math.abs(point.time - time) < 30 * 24 * 60 * 60); // Within 30 days
+    
+    if (!dataPoint) return;
+    
+    const summaryContainer = document.getElementById('summaryOverlayContent');
+    const timeDisplay = formatTimeDisplay(dataPoint.month);
+    
+    // Update the summary overlay title to show the time period
+    const titleElement = document.querySelector('.summary-overlay-title');
+    if (titleElement) {
+        titleElement.textContent = `📊 Financial Summary (${timeDisplay})`;
+    }
+    
+    // Create summary cards for the overlay
+    summaryContainer.innerHTML = `
+        <div class="summary-overlay-card">
+            <h4>Savings</h4>
+            <div class="value">${formatCurrency(dataPoint.savings)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Net Worth</h4>
+            <div class="value">${formatCurrency(dataPoint.netWorth)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Contributions</h4>
+            <div class="value">${formatCurrency(dataPoint.totalContributions)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Interest Earned</h4>
+            <div class="value">${formatCurrency(dataPoint.interestEarned)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Loan Balance</h4>
+            <div class="value">${formatCurrency(dataPoint.loanBalance)}</div>
+        </div>
+        <div class="summary-overlay-card">
+            <h4>Interest Paid</h4>
+            <div class="value">${formatCurrency(dataPoint.totalInterestPaid)}</div>
+        </div>
+    `;
+}
+
+function updateSummary(results) {
+    // Since we removed the bottom summary, we don't need to populate it
+    // But we should update the overlay if it's open
+    const overlay = document.getElementById('summaryOverlay');
+    if (overlay && overlay.classList.contains('show')) {
+        updateSummaryOverlay();
+    }
+}
+
+function addLoan() {
+    const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
+    const rate = parseFloat(document.getElementById('loanRate').value) || 0;
+    const term = parseInt(document.getElementById('loanTerm').value) || 1;
+    const startDate = document.getElementById('loanStartDate').value;
+    const customPayment = parseFloat(document.getElementById('loanMonthlyPayment').value) || 0;
+    
+    if (amount <= 0) {
+        alert('Please enter a valid loan amount');
+        return;
+    }
+    
+    if (!startDate) {
+        alert('Please select a start date for the loan');
+        return;
+    }
+    
+    // Convert start date to month number relative to savings start date
+    const savingsStartDate = document.getElementById('startDate').value;
+    const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+    const loanStartDateObj = new Date(startDate + '-01');
+    
+    // Calculate month difference
+    const startMonth = (loanStartDateObj.getFullYear() - baseDate.getFullYear()) * 12 + 
+                      (loanStartDateObj.getMonth() - baseDate.getMonth()) + 1;
+    
+    if (startMonth < 1) {
+        alert('Loan start date must be after the savings start date');
+        return;
+    }
+    
+    const calculatedPayment = calculateMonthlyPayment(amount, rate, term);
+    const monthlyPayment = customPayment > 0 ? customPayment : calculatedPayment;
+    
+    // Validate that custom payment is at least the minimum required
+    if (customPayment > 0 && customPayment < calculatedPayment) {
+        const proceed = confirm(
+            `Warning: Your custom payment ($${customPayment.toLocaleString()}) is less than the minimum required payment ($${calculatedPayment.toLocaleString()}). ` +
+            `This loan may never be fully paid off. Do you want to continue?`
+        );
+        if (!proceed) return;
+    }
+    
+    const loan = {
+        id: Date.now(),
+        amount: amount,
+        rate: rate,
+        term: term,
+        startMonth: startMonth,
+        startDate: startDate, // Store the actual date for display
+        monthlyPayment: monthlyPayment,
+        calculatedPayment: calculatedPayment,
+        isCustomPayment: customPayment > 0
+    };
+    
+    loans.push(loan);
+    updateLoansList();
+    updateChart();
+    
+    // Clear form
+    document.getElementById('loanAmount').value = '';
+    document.getElementById('loanRate').value = '4.5';
+    document.getElementById('loanTerm').value = '30';
+    document.getElementById('loanStartDate').value = '';
+    document.getElementById('loanMonthlyPayment').value = '';
+}
+
+function removeLoan(loanId) {
+    loans = loans.filter(loan => loan.id !== loanId);
+    updateLoansList();
+    updateChart();
+}
+
+function updateLoansList() {
+    const loansList = document.getElementById('loansList');
+    
+    if (loans.length === 0) {
+        loansList.innerHTML = '<p style="color: #666; font-style: italic; font-size: 12px; margin: 0;">No loans added yet</p>';
+        return;
+    }
+    
+    const savingsStartDate = document.getElementById('startDate').value;
+    const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+    
+    loansList.innerHTML = loans.map(loan => {
+        const paymentInfo = loan.isCustomPayment 
+            ? `<strong>$${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 0})}</strong> (Custom)`
+            : `$${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 0})} (Min)`;
+        
+        const extraPayment = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
+            ? `<br><small style="color: #28a745;">+$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', {maximumFractionDigits: 0})}/mo extra</small>`
+            : '';
+        
+        // Convert start month back to readable date
+        let startDateDisplay;
+        if (loan.startDate) {
+            // Use stored date if available (new format)
+            const startDateObj = new Date(loan.startDate + '-01');
+            startDateDisplay = startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        } else {
+            // Calculate from month number (backward compatibility)
+            const startDateObj = new Date(baseDate);
+            startDateObj.setMonth(startDateObj.getMonth() + loan.startMonth - 1);
+            startDateDisplay = startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        }
+        
+        return `
+            <div class="loan-item">
+                <div><strong>$${loan.amount.toLocaleString()}</strong> @ ${loan.rate}% / ${loan.term}yr</div>
+                <div style="margin: 3px 0;">Payment: ${paymentInfo}</div>
+                <div style="margin: 3px 0;">Starts: ${startDateDisplay}</div>
+                ${extraPayment}
+                <button class="remove-loan" onclick="removeLoan(${loan.id})">Remove</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function exportToJSON() {
+    const data = {
+        savings: {
+            startDate: document.getElementById('startDate').value,
+            initialAmount: parseFloat(document.getElementById('initialAmount').value) || 0,
+            monthlySavings: parseFloat(document.getElementById('monthlySavings').value) || 0,
+            interestRate: parseFloat(document.getElementById('interestRate').value) || 0,
+            timePeriod: parseInt(document.getElementById('timePeriod').value) || 1,
+            goalAmount: parseFloat(document.getElementById('goalAmount').value) || 0,
+            financialOverrides: netWorthOverrides
+        },
+        chartHeader: {
+            title: document.getElementById('chartTitle').value || 'Family Finance Growth',
+            subtitle: document.getElementById('chartSubtitle').value || 'Interactive financial projection',
+            background: document.getElementById('chartHeaderBg').value || 'gradient',
+            position: document.getElementById('chartHeaderPos').value || 'top-left',
+            visible: document.getElementById('chartHeaderVisible').value === 'true'
+        },
+        loans: loans.map(loan => ({
+            amount: loan.amount,
+            rate: loan.rate,
+            term: loan.term,
+            startMonth: loan.startMonth,
+            startDate: loan.startDate, // Include the actual date
+            monthlyPayment: loan.isCustomPayment ? loan.monthlyPayment : null,
+            isCustomPayment: loan.isCustomPayment
+        })),
+        exportDate: new Date().toISOString(),
+        version: "1.4"
+    };
+    
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `family-finance-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    console.log('Exported data:', data);
+}
+
+function importFromJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            loadDataFromJSON(data);
+        } catch (error) {
+            alert('Error reading JSON file: ' + error.message);
+            console.error('JSON import error:', error);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function loadDataFromJSON(data) {
+    try {
+        // Load savings data
+        if (data.savings) {
+            document.getElementById('startDate').value = data.savings.startDate || '';
+            document.getElementById('initialAmount').value = data.savings.initialAmount || 0;
+            document.getElementById('monthlySavings').value = data.savings.monthlySavings || 0;
+            document.getElementById('interestRate').value = data.savings.interestRate || 0;
+            document.getElementById('timePeriod').value = data.savings.timePeriod || 1;
+            document.getElementById('goalAmount').value = data.savings.goalAmount || '';
+            
+            // Load financial overrides with backward compatibility
+            netWorthOverrides = data.savings.financialOverrides || data.savings.netWorthOverrides || data.savings.monthlyOverrides || {};
+            
+            // Convert old format (direct amount) to new format (object with savings and loanBalance)
+            Object.entries(netWorthOverrides).forEach(([month, value]) => {
+                if (typeof value !== 'object') {
+                    // This is old format - convert to new format
+                    // Assume the loan balance was 0 in the old format
+                    netWorthOverrides[month] = {
+                        savings: value,
+                        loanBalance: 0
+                    };
+                }
+            });
+        }
+        
+        // Load chart header settings
+        if (data.chartHeader) {
+            document.getElementById('chartTitle').value = data.chartHeader.title || 'Family Finance Growth';
+            document.getElementById('chartSubtitle').value = data.chartHeader.subtitle || 'Interactive financial projection';
+            document.getElementById('chartHeaderBg').value = data.chartHeader.background || 'gradient';
+            document.getElementById('chartHeaderPos').value = data.chartHeader.position || 'top-left';
+            document.getElementById('chartHeaderVisible').value = data.chartHeader.visible !== false ? 'true' : 'false';
+            updateChartHeader();
+        }
+        
+        // Load loans data
+        if (data.loans && Array.isArray(data.loans)) {
+            const savingsStartDate = document.getElementById('startDate').value;
+            const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+            
+            loans = data.loans.map((loanData, index) => {
+                const calculatedPayment = calculateMonthlyPayment(loanData.amount, loanData.rate, loanData.term);
+                const monthlyPayment = loanData.isCustomPayment && loanData.monthlyPayment 
+                    ? loanData.monthlyPayment 
+                    : calculatedPayment;
+                
+                // Handle start date - use stored date if available, otherwise calculate from month
+                let startDate = loanData.startDate;
+                let startMonth = loanData.startMonth || 1;
+                
+                if (!startDate && startMonth) {
+                    // Convert month number to date for backward compatibility
+                    const startDateObj = new Date(baseDate);
+                    startDateObj.setMonth(startDateObj.getMonth() + startMonth - 1);
+                    startDate = startDateObj.getFullYear() + '-' + String(startDateObj.getMonth() + 1).padStart(2, '0');
+                }
+                
+                return {
+                    id: Date.now() + index, // Generate new unique IDs
+                    amount: loanData.amount,
+                    rate: loanData.rate,
+                    term: loanData.term,
+                    startMonth: startMonth,
+                    startDate: startDate,
+                    monthlyPayment: monthlyPayment,
+                    calculatedPayment: calculatedPayment,
+                    isCustomPayment: loanData.isCustomPayment || false
+                };
+            });
+        }
+        
+        // Update UI
+        updateLoansList();
+        updateChart();
+        
+        console.log('Successfully imported data:', data);
+        alert(`Successfully imported financial data${data.exportDate ? ' from ' + new Date(data.exportDate).toLocaleDateString() : ''}!`);
+        
+    } catch (error) {
+        alert('Error loading data: ' + error.message);
+        console.error('Data loading error:', error);
+    }
+}
+
+function testVehicleOverlay() {
+    console.log('Testing vehicle overlay...');
+    addVehicleOverlay(null, null);
+}
+
+function clearAllLoans() {
+    if (loans.length === 0) return;
+    
+    if (confirm('Are you sure you want to remove all loans?')) {
+        loans = [];
+        updateLoansList();
+        updateChart();
+    }
+}
+
+// Auto-update chart when inputs change
+document.addEventListener('input', function(e) {
+    if (e.target.type === 'number' && ['initialAmount', 'monthlySavings', 'interestRate', 'timePeriod', 'goalAmount'].includes(e.target.id)) {
+        setTimeout(updateChart, 300); // Debounce updates
+    }
+    
+    if (e.target.type === 'month' && e.target.id === 'startDate') {
+        setTimeout(updateChart, 300); // Debounce updates
+    }
+    
+    // Update loan payment placeholder when loan details change
+    if (['loanAmount', 'loanRate', 'loanTerm'].includes(e.target.id)) {
+        updateLoanPaymentPlaceholder();
+    }
+});
+
+function updateLoanPaymentPlaceholder() {
+    const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
+    const rate = parseFloat(document.getElementById('loanRate').value) || 0;
+    const term = parseInt(document.getElementById('loanTerm').value) || 1;
+    
+    if (amount > 0 && rate >= 0 && term > 0) {
+        const calculatedPayment = calculateMonthlyPayment(amount, rate, term);
+        document.getElementById('loanMonthlyPayment').placeholder = `Min: $${calculatedPayment.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+    } else {
+        document.getElementById('loanMonthlyPayment').placeholder = 'Auto-calculated';
+    }
+}
