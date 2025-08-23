@@ -190,13 +190,67 @@ function toggleDrawer() {
 
 function openDrawer() {
     const drawer = document.getElementById('drawer');
-    drawer.classList.add('open');
+    const handle = document.querySelector('.drawer-handle');
+    
+    if (handle) {
+        // Get computed height (which includes min-height enforcement)
+        const computedStyle = window.getComputedStyle(drawer);
+        const height = computedStyle.height;
+        
+        // Convert vh units to pixels or use pixel value directly
+        let drawerHeightPx;
+        if (height.includes('vh')) {
+            const vhValue = parseFloat(height);
+            drawerHeightPx = (vhValue / 100) * window.innerHeight;
+        } else {
+            drawerHeightPx = parseFloat(height);
+        }
+        
+        // Ensure minimum height of 374px (should already be enforced by CSS)
+        const finalHeight = Math.max(drawerHeightPx, 374);
+        
+        // Set both at exactly the same time
+        handle.style.bottom = `${finalHeight - 2}px`;
+        drawer.classList.add('open');
+    } else {
+        drawer.classList.add('open');
+    }
 }
 
 function closeDrawer() {
     const drawer = document.getElementById('drawer');
+    const handle = document.querySelector('.drawer-handle');
+    
+    // Set both at exactly the same time
+    if (handle) {
+        handle.style.bottom = '-10px';
+    }
     drawer.classList.remove('open');
 }
+
+// Handle window resize to reposition handle if drawer is open
+window.addEventListener('resize', () => {
+    const drawer = document.getElementById('drawer');
+    if (drawer && drawer.classList.contains('open')) {
+        const handle = document.querySelector('.drawer-handle');
+        if (handle) {
+            const computedStyle = window.getComputedStyle(drawer);
+            const height = computedStyle.height;
+            
+            let drawerHeightPx;
+            if (height.includes('vh')) {
+                const vhValue = parseFloat(height);
+                drawerHeightPx = (vhValue / 100) * window.innerHeight;
+            } else {
+                drawerHeightPx = parseFloat(height);
+            }
+            
+            // Ensure minimum height of 374px
+            const finalHeight = Math.max(drawerHeightPx, 374);
+            handle.style.bottom = `${finalHeight - 2}px`;
+        }
+    }
+});
 
 // Chart hover functionality
 function showChartHover(event, dataPoint) {

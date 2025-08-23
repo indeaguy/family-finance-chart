@@ -233,6 +233,16 @@ ui-manager.js    override-manager.js  utilities.js
 - ❌ Don't hardcode dimensions, colors, or business rules
 - ✅ Use configuration objects or CSS variables
 
+### 5. **Handle Animation Anti-Patterns** ⚠️ CRITICAL
+- ❌ **NEVER animate handle AFTER drawer completes** - This breaks the illusion of connection
+- ❌ **NEVER use setTimeout/transitionend to position handle** - Creates visible delay and inconsistent timing
+- ❌ **NEVER measure DOM during animation** - Causes timing inconsistencies and visual glitches
+- ✅ **ALWAYS calculate final position BEFORE starting animations** - Both must start simultaneously
+- ✅ **ALWAYS use identical CSS transition timing** - Handle and drawer must move with same easing curve
+- ✅ **ALWAYS set handle position immediately before drawer class change** - No gaps in execution
+
+**Handle Animation Rule**: The handle must appear physically attached to the drawer throughout the entire animation. Any delay or separate timing breaks this illusion.
+
 ## 🔄 Migration History
 
 ### From Monolithic to Modular (Current)

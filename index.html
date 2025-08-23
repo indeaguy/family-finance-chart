@@ -43,42 +43,51 @@
         /* Drawer handle */
         .drawer-handle {
             position: fixed;
-            bottom: -5px;
+            bottom: -10px; /* Closed position */
             left: 50%;
             transform: translateX(-50%);
-            width: 120px;
-            height: 25px;
-            background: linear-gradient(145deg, #e6e6e6, #ffffff);
-            border: 1px solid #d0d0d0;
-            border-bottom: none;
-            border-radius: 12px 12px 0 0;
-            box-shadow: 
-                inset 0 2px 4px rgba(255,255,255,0.8),
-                inset 0 -1px 2px rgba(0,0,0,0.1),
-                0 -2px 8px rgba(0,0,0,0.15);
+            width: 240px;
+            height: 50px;
+            background-image: url('images/handle.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
             cursor: pointer;
-            z-index: 100;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            z-index: 89; /* Behind drawer */
+            border: none;
+            box-shadow: none;
+            transition: bottom 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
         
         .drawer-handle:hover {
             transform: translateX(-50%) translateY(-2px);
-            box-shadow: 
-                inset 0 2px 4px rgba(255,255,255,0.9),
-                inset 0 -1px 2px rgba(0,0,0,0.1),
-                0 -4px 12px rgba(0,0,0,0.2);
+            filter: brightness(1.1);
         }
         
-        .drawer-handle::before {
-            content: '';
-            width: 40px;
-            height: 4px;
-            background: linear-gradient(90deg, #bbb, #ddd, #bbb);
-            border-radius: 2px;
-            box-shadow: inset 0 1px 1px rgba(0,0,0,0.2);
+        .drawer-handle:hover {
+            transform: translateX(-50%) translateY(-2px);
+            filter: brightness(1.1);
+        }
+        
+        /* Remove the old ::before pseudo-element */
+        
+        /* CSS Custom Properties for responsive drawer heights */
+        :root {
+            --drawer-height-mobile: 60vh;
+            --drawer-height-tablet: 50vh;
+            --drawer-height-desktop: 40vh;
+        }
+        
+        /* Reference element for handle positioning */
+        .drawer-top-reference {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+            pointer-events: none;
+            opacity: 0;
+            z-index: -1;
         }
         
         /* Real drawer container */
@@ -88,11 +97,12 @@
             left: 0;
             right: 0;
             width: 100%;
-            max-height: 50vh;
+            height: var(--drawer-height-mobile); /* Use height instead of max-height */
+            min-height: 374px; /* Minimum height when open */
             background: linear-gradient(145deg, #8B4513, #A0522D, #CD853F);
             border: 2px solid #654321;
             border-bottom: none;
-            border-radius: 8px 8px 0 0;
+            border-radius: 0; /* Removed rounded corners */
             box-shadow: 
                 0 -8px 32px rgba(0,0,0,0.3),
                 inset 0 2px 0 rgba(255,255,255,0.1),
@@ -101,6 +111,32 @@
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             overflow: hidden;
+        }
+        
+        /* Ensure drawer interior fills the container */
+        .drawer-interior {
+            height: 100%;
+            min-height: 374px;
+        }
+        
+        /* Responsive drawer heights */
+        @media (min-width: 768px) {
+            .drawer-container {
+                height: var(--drawer-height-tablet);
+            }
+            .drawer-interior {
+                min-height: 374px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .drawer-container {
+                height: var(--drawer-height-desktop);
+                min-height: 374px; /* Force minimum even on desktop */
+            }
+            .drawer-interior {
+                min-height: 374px;
+            }
         }
         
         .drawer-container.open {
@@ -1195,11 +1231,14 @@
 </head>
 <body>
     <div class="main-container">
-        <!-- Drawer Handle -->
+        <!-- Drawer Handle (back outside for visibility) -->
         <div class="drawer-handle" onclick="toggleDrawer()"></div>
-
+        
         <!-- Real Drawer Container -->
         <div class="drawer-container" id="drawer">
+            <!-- Reference element for handle positioning -->
+            <div class="drawer-top-reference" id="drawerTopRef"></div>
+            
             <div class="drawer-interior">
                 <div class="pencil"></div>
                 <div class="pin"></div>
