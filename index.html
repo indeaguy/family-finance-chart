@@ -142,6 +142,17 @@
         .drawer-container.open {
             transform: translateY(0);
         }
+
+        /* Let raised loose-leaf / pencil entrance escape the drawer bounds */
+        .drawer-container.open.sheet-escaping,
+        .drawer-container.open.pencil-entering {
+            overflow: visible;
+        }
+
+        .drawer-container.open.sheet-escaping .drawer-interior,
+        .drawer-container.open.pencil-entering .drawer-interior {
+            overflow: visible;
+        }
         
         /* Wooden drawer interior */
         .drawer-interior {
@@ -711,22 +722,23 @@
             box-shadow: 1px 1px 0px #2c3e50;
         }
         .chart-container {
-            background: #2c3e50;
+            background: #ffffff; /* Match chart background color */
             border: 3px solid #f39c12;
             position: relative;
             overflow: visible;
             box-shadow: 8px 8px 0px #8e44ad;
-            padding: 0;
+            padding: 60px 80px; /* Add padding for breathing room */
             flex: 1; /* Take up remaining space */
             display: flex;
             flex-direction: column;
             min-height: 0; /* Allow flex shrinking */
+            box-sizing: border-box; /* Include padding in size calculation */
         }
         
         #chart {
             width: 100%;
-            flex: 1;
-            min-height: 400px; /* Minimum height for usability */
+            height: 100%;
+            position: relative; /* For positioned child elements */
         }
         
         .chart-header {
@@ -820,11 +832,7 @@
             font-weight: 600;
             text-transform: uppercase;
         }
-        #chart {
-            width: 100%;
-            height: calc(100% - 20px);
-            position: relative;
-        }
+
         
         /* Custom chart overlay for goal markers */
         .chart-overlay {
@@ -899,6 +907,15 @@
             box-shadow: 4px 4px 0px #8e44ad;
         }
         
+        .summary-toggle:focus {
+            outline: 2px solid #3498db;
+            outline-offset: 2px;
+        }
+        
+        .summary-toggle:active {
+            transform: scale(0.95);
+        }
+        
         .summary-overlay {
             position: absolute;
             bottom: 70px;
@@ -956,21 +973,40 @@
         }
         
         .summary-overlay-close {
-            background: none;
-            border: none;
-            color: #bdc3c7;
-            font-size: 18px;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(231, 76, 60, 0.9);
+            border: 2px solid #ecf0f1;
+            border-radius: 50%;
+            color: #ecf0f1;
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
             padding: 0;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
+            z-index: 25;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         
         .summary-overlay-close:hover {
-            color: #e74c3c;
+            background: rgba(192, 57, 43, 0.95);
+            transform: scale(1.1);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+        }
+        
+        .summary-overlay-close:focus {
+            outline: 2px solid #3498db;
+            outline-offset: 2px;
+        }
+        
+        .summary-overlay-close:active {
+            transform: scale(0.95);
         }
         
         .summary-overlay-grid {
@@ -1094,6 +1130,573 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1px;
+        }
+
+        /* File folders with tabbed loose-leaf (scroll by raising the sheet) */
+        .file-folder {
+            position: relative;
+            z-index: 4;
+            width: 100%;
+            min-width: 0;
+            /* Room for tabs above the folder body — tabs must not cover the sheet */
+            padding-top: 30px;
+            transform: rotate(0.15deg);
+            --folder-face: #e8d4a8;
+            --folder-face-deep: #d4b896;
+            --folder-face-edge: #b8956a;
+            --folder-ink: #3d2914;
+            --folder-shadow: rgba(140, 100, 50, 0.14);
+            /* Pocket height is set in JS to reach the bottom of the screen */
+            --leaf-line: 28px;
+            --folder-pocket-height: calc(var(--leaf-line) * 10);
+            /* Exactly 10 equal facet bands for a uniform decagon roll */
+            --pencil-facet: 4px;
+            --pencil-facet-cycle: calc(var(--pencil-facet) * 10);
+        }
+
+        /* Sit beside chalkboards; use two grid tracks when the drawer is wide enough */
+        @media (min-width: 900px) {
+            .file-folder {
+                grid-column: span 2;
+            }
+        }
+
+        .file-folder.folder-loans {
+            --folder-face: #e8d4a8;
+            --folder-face-deep: #d4b896;
+            --folder-face-edge: #b8956a;
+            --folder-ink: #3d2914;
+            --folder-shadow: rgba(140, 100, 50, 0.14);
+        }
+
+        .file-folder.folder-savings {
+            --folder-face: #8fbf7a;
+            --folder-face-deep: #6fa35c;
+            --folder-face-edge: #4f7d42;
+            --folder-ink: #1f3d18;
+            --folder-shadow: rgba(50, 90, 40, 0.16);
+        }
+
+        .folder-tabs {
+            position: absolute;
+            top: 0;
+            left: 12px;
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 30px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .folder-tab {
+            pointer-events: auto;
+            position: relative;
+            margin: 0 !important;
+            width: auto !important;
+            min-width: 78px;
+            height: 26px;
+            padding: 0 16px !important;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            border-style: solid !important;
+            border-width: 1px 1px 0 1px !important;
+            border-radius: 8px 8px 0 0 !important;
+            font-family: 'Kalam', cursive !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            text-transform: none !important;
+            letter-spacing: 0.3px !important;
+            box-shadow: none !important;
+            transform: none !important;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        /* Each tab is colored as its own folder */
+        .folder-tab-loans {
+            background: #d4b896 !important;
+            border-color: #b8956a !important;
+            color: #5c4030 !important;
+        }
+
+        .folder-tab-savings {
+            background: #6fa35c !important;
+            border-color: #4f7d42 !important;
+            color: #1f3d18 !important;
+        }
+
+        .folder-tab:not(.active) {
+            height: 22px;
+            opacity: 0.9;
+            z-index: 1;
+        }
+
+        /* Active tab blends into folder face — no seam line */
+        .folder-tab.active {
+            height: 30px;
+            z-index: 3;
+            background: var(--folder-face) !important;
+            border-color: var(--folder-face-edge) !important;
+            border-bottom: 1px solid var(--folder-face) !important;
+            color: var(--folder-ink) !important;
+            margin-bottom: -1px;
+        }
+
+        .folder-tab:hover {
+            filter: brightness(1.04);
+        }
+
+        .folder-body {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(165deg, var(--folder-face) 0%, var(--folder-face-deep) 100%);
+            border: 1px solid var(--folder-face-edge);
+            border-radius: 0 10px 10px 10px;
+            padding: 12px 12px 8px;
+            box-shadow:
+                0 3px 10px rgba(0, 0, 0, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.28),
+                inset 0 -14px 20px var(--folder-shadow);
+            overflow: visible;
+        }
+
+        /* Raised sheet stacks above tabs (tabs live in a sibling stacking context) */
+        .file-folder.sheet-raised .folder-tabs {
+            z-index: 0;
+        }
+
+        .file-folder.sheet-raised .folder-body {
+            z-index: 6;
+        }
+
+        /* Pocket height is set once (not during drawer animation) to avoid layout jerk */
+        .folder-pocket {
+            position: relative;
+            height: var(--folder-pocket-height);
+            overflow: visible;
+            clip-path: inset(-100vh 0 0 0);
+        }
+
+        .folder-sheet {
+            display: none;
+            position: relative;
+            z-index: 1;
+            min-height: 100%;
+            box-sizing: border-box;
+            border-radius: 2px;
+            /* No vertical padding — ruled rows start on line 0 of the paper */
+            padding: 0;
+            /* Clearance so last rows can scroll up above the pencil */
+            padding-bottom: calc(var(--leaf-line) * 2);
+            will-change: transform;
+            background-color: #fffef7;
+        }
+
+        .folder-sheet.active {
+            display: block;
+        }
+
+        .file-folder.sheet-raised .folder-sheet.active {
+            z-index: 2;
+            box-shadow:
+                0 8px 24px rgba(0, 0, 0, 0.22),
+                2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+
+        /* Opaque ruled paper — edge via box-shadow so the 1px border cannot shift the line grid */
+        .folder-sheet.loose-leaf,
+        .loose-leaf-sheet {
+            --leaf-line: 28px;
+            --leaf-margin-x: 36px;
+            background-color: #fffef7;
+            background-image:
+                linear-gradient(90deg, transparent var(--leaf-margin-x), #d97878 var(--leaf-margin-x), #d97878 calc(var(--leaf-margin-x) + 1px), transparent calc(var(--leaf-margin-x) + 1px)),
+                repeating-linear-gradient(
+                    0deg,
+                    #fffef7 0px,
+                    #fffef7 calc(var(--leaf-line) - 1px),
+                    #b7c6e8 calc(var(--leaf-line) - 1px),
+                    #b7c6e8 var(--leaf-line)
+                );
+            background-position: 0 0;
+            background-origin: padding-box;
+            background-clip: padding-box;
+            border: none;
+            box-shadow:
+                0 0 0 1px #d8d2c0,
+                0 1px 3px rgba(0, 0, 0, 0.12),
+                1px 2px 0 rgba(0, 0, 0, 0.04);
+        }
+
+        /* Pencil is outside the pocket clip; rolls up from below the screen into place */
+        .folder-pocket-footer {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -32px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 8px;
+            z-index: 30;
+            pointer-events: none;
+            opacity: 0;
+            transition: none;
+        }
+
+        .folder-pocket-footer.pencil-on-drawer-floor,
+        .folder-pocket-footer.pencil-above-fold {
+            opacity: 1;
+        }
+
+        .file-folder.folder-savings .folder-pocket-footer {
+            display: none;
+        }
+
+        /* Decagonal side-view pencil — facets roll only while the sheet scrolls */
+        .add-loan-pencil {
+            pointer-events: auto;
+            display: inline-flex !important;
+            align-items: stretch;
+            width: min(168px, 70%) !important;
+            height: 26px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            transform: none !important;
+            cursor: pointer;
+            filter: drop-shadow(1px 2px 2px rgba(0, 0, 0, 0.25));
+        }
+
+        .add-loan-pencil:hover {
+            filter: drop-shadow(1px 2px 3px rgba(0, 0, 0, 0.35)) brightness(1.03);
+        }
+
+        .pencil-eraser {
+            width: 14px;
+            background: linear-gradient(180deg, #f5a9b8 0%, #e87890 45%, #d96a82 100%);
+            border-radius: 2px 0 0 2px;
+            border: 1px solid #b85a6e;
+            border-right: none;
+            flex-shrink: 0;
+        }
+
+        .pencil-ferrule {
+            width: 10px;
+            background:
+                repeating-linear-gradient(
+                    180deg,
+                    #c0c0c0 0px,
+                    #c0c0c0 2px,
+                    #8a8a8a 2px,
+                    #8a8a8a 3px,
+                    #d8d8d8 3px,
+                    #d8d8d8 5px
+                );
+            border-top: 1px solid #777;
+            border-bottom: 1px solid #777;
+            flex-shrink: 0;
+        }
+
+        .pencil-barrel {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            border-top: 1px solid #b8952a;
+            border-bottom: 1px solid #b8952a;
+            background: #f0d060;
+            --pencil-facet: 4px;
+            --pencil-facet-cycle: 40px;
+        }
+
+        /* 10 equal 4px facet bands; background-position-y driven by scroll / entrance roll */
+        .pencil-barrel-roll {
+            position: absolute;
+            inset: 0;
+            background-image: repeating-linear-gradient(
+                180deg,
+                #f8e7a0 0 4px,
+                #f0d060 4px 8px,
+                #e8c84a 8px 12px,
+                #d4a84b 12px 16px,
+                #c9a035 16px 20px,
+                #d4a84b 20px 24px,
+                #e8c84a 24px 28px,
+                #f0d060 28px 32px,
+                #f8e7a0 32px 36px,
+                #e8d070 36px 40px
+            );
+            background-size: 100% 40px;
+            background-repeat: repeat-y;
+            background-position: 0 0;
+            pointer-events: none;
+        }
+
+        .pencil-label {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 0 6px;
+            color: #3d2914;
+            font-family: 'Kalam', cursive;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .pencil-cone {
+            width: 16px;
+            background: linear-gradient(180deg, #e8d4a8 0%, #c4a574 50%, #a67c52 100%);
+            clip-path: polygon(0 0, 100% 42%, 100% 58%, 0 100%);
+            border-top: 1px solid #a67c52;
+            border-bottom: 1px solid #8b6914;
+            flex-shrink: 0;
+        }
+
+        .pencil-graphite {
+            width: 6px;
+            margin-left: -1px;
+            background: linear-gradient(180deg, #555 0%, #222 50%, #111 100%);
+            clip-path: polygon(0 38%, 100% 48%, 100% 52%, 0 62%);
+            flex-shrink: 0;
+        }
+
+        /* One notebook line per row — height must equal --leaf-line exactly */
+        .sheet-ruled-row {
+            height: var(--leaf-line);
+            min-height: var(--leaf-line);
+            max-height: var(--leaf-line);
+            margin: 0;
+            padding: 0 8px 3px calc(var(--leaf-margin-x) + 10px);
+            box-sizing: border-box;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            color: #2f4f4f;
+            font-family: 'Kalam', cursive;
+            font-size: 13px;
+            font-weight: 400;
+            line-height: 1;
+            overflow: hidden;
+        }
+
+        .sheet-ruled-row.sheet-heading {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .folder-sheet .input-row,
+        .loose-leaf-sheet .input-row {
+            justify-content: space-between;
+        }
+
+        .folder-sheet label,
+        .loose-leaf-sheet label,
+        .loose-leaf-sheet .detail-label {
+            color: #2f4f4f;
+            font-family: 'Kalam', cursive;
+            font-size: 13px;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .folder-sheet input,
+        .loose-leaf-sheet input {
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            color: #2f4f4f;
+            font-family: 'Kalam', cursive;
+            font-size: 13px;
+            font-weight: 400;
+            width: 110px;
+            height: calc(var(--leaf-line) - 6px);
+            padding: 0 4px;
+            text-align: right;
+            box-shadow: none;
+        }
+
+        .folder-sheet input:focus,
+        .loose-leaf-sheet input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.65);
+            box-shadow: none;
+        }
+
+        .folder-sheet .sheet-inline-btn,
+        .loose-leaf-sheet .sheet-inline-btn {
+            margin: 0 !important;
+            width: auto !important;
+            height: calc(var(--leaf-line) - 6px) !important;
+            padding: 0 12px !important;
+            background: transparent !important;
+            color: #2f4f4f !important;
+            border: none !important;
+            border-bottom: 1px solid #2f4f4f !important;
+            border-radius: 0 !important;
+            font-family: 'Kalam', cursive !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            text-transform: none !important;
+            letter-spacing: 0.2px !important;
+            box-shadow: none !important;
+            transform: none !important;
+            cursor: pointer;
+        }
+
+        .folder-sheet .sheet-inline-btn:hover,
+        .loose-leaf-sheet .sheet-inline-btn:hover {
+            background: rgba(47, 79, 79, 0.06) !important;
+        }
+
+        .loose-leaf-sheet .sheet-danger-btn {
+            color: #8b1e1e !important;
+            border-bottom-color: #8b1e1e !important;
+        }
+
+        .folder-sheet .loans-list {
+            max-height: none;
+            overflow: visible;
+            padding: 0;
+        }
+
+        .folder-sheet .loans-empty {
+            color: #6b7b7b;
+            font-style: italic;
+        }
+
+        .loans-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .loans-table thead th {
+            font-weight: 700;
+            text-align: left;
+            color: #2f4f4f;
+            font-family: 'Kalam', cursive;
+            font-size: 12px;
+        }
+
+        .loans-table th,
+        .loans-table td {
+            padding: 0 4px 3px 0;
+            height: var(--leaf-line);
+            border: none;
+            vertical-align: bottom;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: 'Kalam', cursive;
+            font-size: 12px;
+            color: #2f4f4f;
+            font-weight: 400;
+            line-height: 1;
+        }
+
+        .loans-table tr.sheet-ruled-row {
+            display: table-row;
+            height: var(--leaf-line);
+            min-height: var(--leaf-line);
+            max-height: var(--leaf-line);
+            padding: 0;
+            align-items: unset;
+            gap: 0;
+            overflow: visible;
+        }
+
+        .loans-table tr.sheet-ruled-row > :first-child {
+            padding-left: calc(var(--leaf-margin-x) + 10px);
+        }
+
+        .loans-table .loan-table-row {
+            cursor: pointer;
+        }
+
+        .loans-table .loan-table-row:hover td {
+            background: rgba(47, 79, 79, 0.06);
+        }
+
+        /* Floating loose-leaf pulled from the folder (must not use .modal-content chalk styles) */
+        .modal.loan-detail-overlay {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(40, 30, 20, 0.45);
+            backdrop-filter: blur(2px);
+        }
+
+        .modal.loan-detail-overlay.is-open {
+            display: flex;
+        }
+
+        .loose-leaf-sheet {
+            position: relative;
+            width: min(420px, calc(100vw - 32px));
+            margin: 0;
+            padding: 0;
+            border-radius: 1px;
+            box-shadow:
+                0 1px 2px rgba(0, 0, 0, 0.12),
+                4px 10px 28px rgba(0, 0, 0, 0.28);
+            transform: rotate(-0.6deg);
+            max-height: min(70vh, calc(var(--leaf-line, 28px) * 14));
+            overflow: auto;
+        }
+
+        .loose-leaf-sheet-x {
+            position: absolute;
+            top: 0;
+            right: 8px;
+            z-index: 2;
+            width: var(--leaf-line) !important;
+            height: var(--leaf-line) !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            background: transparent !important;
+            color: #2f4f4f !important;
+            font-family: 'Kalam', cursive !important;
+            font-size: 22px !important;
+            line-height: var(--leaf-line);
+            cursor: pointer;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        .loose-leaf-sheet-body {
+            padding: 0;
+        }
+
+        .loose-leaf-sheet .detail-value {
+            text-align: right;
+            min-width: 120px;
+            color: #2f4f4f;
+            font-family: 'Kalam', cursive;
+            font-size: 13px;
+        }
+
+        .loose-leaf-sheet .loan-detail-actions {
+            justify-content: flex-start;
+            gap: 16px;
         }
         
         /* Modal styles */
@@ -1275,34 +1878,35 @@
                         <button onclick="showNetWorthOverrides()">📈 Net Worth Overrides</button>
                     </div>
 
-                    <div class="control-group">
-                        <h3>🏠 Add Loan</h3>
-                        <div class="input-row">
-                            <label>Amount ($):</label>
-                            <input type="number" id="loanAmount" value="200000" min="0">
+                    <div class="file-folder folder-loans" id="loansSavingsFolder" data-active-sheet="loans">
+                        <div class="folder-tabs" role="tablist" aria-label="Loans and Savings folders">
+                            <button type="button" class="folder-tab folder-tab-loans active" role="tab" aria-selected="true" aria-controls="folderSheetLoans" id="folderTabLoans" data-sheet="loans" onclick="switchFolderSheet('loans')">Loans</button>
+                            <button type="button" class="folder-tab folder-tab-savings" role="tab" aria-selected="false" aria-controls="folderSheetSavings" id="folderTabSavings" data-sheet="savings" onclick="switchFolderSheet('savings')">Savings</button>
                         </div>
-                        <div class="input-row">
-                            <label>Rate (%):</label>
-                            <input type="number" id="loanRate" value="4.5" min="0" max="30" step="0.1">
+                        <div class="folder-body">
+                            <div class="folder-pocket">
+                                <div class="folder-sheet loose-leaf active" id="folderSheetLoans" role="tabpanel" aria-labelledby="folderTabLoans" data-sheet="loans">
+                                    <div class="sheet-ruled-row sheet-heading">Active Loans</div>
+                                    <div class="loans-list" id="loansList">
+                                    </div>
+                                </div>
+                                <div class="folder-sheet loose-leaf" id="folderSheetSavings" role="tabpanel" aria-labelledby="folderTabSavings" data-sheet="savings" hidden>
+                                    <!-- Savings sheet left empty for now -->
+                                </div>
+                            </div>
                         </div>
-                        <div class="input-row">
-                            <label>Term (years):</label>
-                            <input type="number" id="loanTerm" value="30" min="1" max="50">
-                        </div>
-                        <div class="input-row">
-                            <label>Start Date:</label>
-                            <input type="month" id="loanStartDate" value="">
-                        </div>
-                        <div class="input-row">
-                            <label>Payment ($):</label>
-                            <input type="number" id="loanMonthlyPayment" placeholder="Auto-calc" min="0">
-                        </div>
-                        <button onclick="addLoan()">Add Loan</button>
-                    </div>
-
-                    <div class="control-group">
-                        <h3>📋 Active Loans</h3>
-                        <div class="loans-list" id="loansList">
+                        <!-- Outside pocket clip-path so it can roll up from below the screen/drawer -->
+                        <div class="folder-pocket-footer">
+                            <button type="button" class="add-loan-pencil" id="addLoanPencilBtn" onclick="showAddLoanForm()" title="Add Loan" aria-label="Add Loan">
+                                <span class="pencil-eraser" aria-hidden="true"></span>
+                                <span class="pencil-ferrule" aria-hidden="true"></span>
+                                <span class="pencil-barrel">
+                                    <span class="pencil-barrel-roll" aria-hidden="true"></span>
+                                    <span class="pencil-label">Add Loan</span>
+                                </span>
+                                <span class="pencil-cone" aria-hidden="true"></span>
+                                <span class="pencil-graphite" aria-hidden="true"></span>
+                            </button>
                         </div>
                     </div>
                     
@@ -1330,16 +1934,58 @@
             </div>
             
             <!-- Summary Toggle Button -->
-            <div class="summary-toggle" onclick="toggleSummaryOverlay()">🔍</div>
+            <div class="summary-toggle" onclick="toggleSummaryOverlay()" role="button" tabindex="0" aria-label="Toggle financial summary overlay" title="Show/Hide Financial Summary">🔍</div>
             
             <!-- Summary Overlay Panel -->
-            <div class="summary-overlay" id="summaryOverlay">
+            <div class="summary-overlay" id="summaryOverlay" role="dialog" aria-labelledby="summaryOverlayTitle" aria-hidden="true">
+                <button class="summary-overlay-close" onclick="closeSummaryOverlay()" aria-label="Close financial summary overlay" title="Close">&times;</button>
                 <div class="summary-overlay-header">
-                    <h3 class="summary-overlay-title">📊 Financial Summary</h3>
-                    <button class="summary-overlay-close" onclick="closeSummaryOverlay()">&times;</button>
+                    <h3 class="summary-overlay-title" id="summaryOverlayTitle">📊 Financial Summary</h3>
                 </div>
                 <div class="summary-overlay-grid" id="summaryOverlayContent">
                     <!-- Summary cards will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loan detail — same loose-leaf paper as the folder sheet -->
+    <div id="loanDetailModal" class="modal loan-detail-overlay">
+        <div class="loose-leaf-sheet" role="dialog" aria-modal="true" aria-labelledby="loanDetailHeading">
+            <button type="button" class="loose-leaf-sheet-x" onclick="closeLoanDetail()" aria-label="Close">&times;</button>
+            <div id="loanDetailBody" class="loose-leaf-sheet-body"></div>
+        </div>
+    </div>
+
+    <!-- Add loan form — loose-leaf sheet -->
+    <div id="addLoanModal" class="modal loan-detail-overlay">
+        <div class="loose-leaf-sheet" role="dialog" aria-modal="true" aria-labelledby="addLoanHeading">
+            <button type="button" class="loose-leaf-sheet-x" onclick="closeAddLoanForm()" aria-label="Close">&times;</button>
+            <div class="loose-leaf-sheet-body">
+                <div class="sheet-ruled-row sheet-heading" id="addLoanHeading">Add Loan</div>
+                <div class="sheet-ruled-row input-row">
+                    <label for="loanAmount">Amount ($)</label>
+                    <input type="number" id="loanAmount" value="200000" min="0">
+                </div>
+                <div class="sheet-ruled-row input-row">
+                    <label for="loanRate">Rate (%)</label>
+                    <input type="number" id="loanRate" value="4.5" min="0" max="30" step="0.1">
+                </div>
+                <div class="sheet-ruled-row input-row">
+                    <label for="loanTerm">Term (years)</label>
+                    <input type="number" id="loanTerm" value="30" min="1" max="50">
+                </div>
+                <div class="sheet-ruled-row input-row">
+                    <label for="loanStartDate">Start Date</label>
+                    <input type="month" id="loanStartDate" value="">
+                </div>
+                <div class="sheet-ruled-row input-row">
+                    <label for="loanMonthlyPayment">Payment ($)</label>
+                    <input type="number" id="loanMonthlyPayment" placeholder="Auto-calc" min="0">
+                </div>
+                <div class="sheet-ruled-row">
+                    <button type="button" class="sheet-inline-btn" onclick="addLoan()">Save loan</button>
+                    <button type="button" class="sheet-inline-btn" onclick="closeAddLoanForm()">Cancel</button>
                 </div>
             </div>
         </div>

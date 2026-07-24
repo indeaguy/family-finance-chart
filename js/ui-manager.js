@@ -51,11 +51,43 @@ class UIManager {
     }
     
     clearLoanForm() {
-        document.getElementById('loanAmount').value = '';
-        document.getElementById('loanRate').value = '4.5';
-        document.getElementById('loanTerm').value = '30';
-        document.getElementById('loanStartDate').value = '';
-        document.getElementById('loanMonthlyPayment').value = '';
+        const amount = document.getElementById('loanAmount');
+        const rate = document.getElementById('loanRate');
+        const term = document.getElementById('loanTerm');
+        const startDate = document.getElementById('loanStartDate');
+        const payment = document.getElementById('loanMonthlyPayment');
+
+        if (amount) amount.value = '200000';
+        if (rate) rate.value = '4.5';
+        if (term) term.value = '30';
+        if (payment) payment.value = '';
+
+        if (startDate) {
+            const savingsStart = document.getElementById('startDate')?.value;
+            if (savingsStart) {
+                startDate.value = savingsStart;
+            } else {
+                const now = new Date();
+                startDate.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            }
+        }
+    }
+
+    showAddLoanForm() {
+        const modal = document.getElementById('addLoanModal');
+        if (!modal) return;
+        this.clearLoanForm();
+        this.updateLoanPaymentPlaceholder();
+        modal.classList.add('is-open');
+        modal.style.display = 'flex';
+    }
+
+    closeAddLoanForm() {
+        const modal = document.getElementById('addLoanModal');
+        if (modal) {
+            modal.classList.remove('is-open');
+            modal.style.display = 'none';
+        }
     }
     
     loadDataToForm(data) {
@@ -83,49 +115,103 @@ class UIManager {
         }
     }
     
-    // Loans List Management
+    formatLoanStartDisplay(loan) {
+        const savingsStartDate = document.getElementById('startDate')?.value;
+        const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+
+        if (loan.startDate) {
+            return new Date(loan.startDate + '-01').toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short'
+            });
+        }
+
+        const startDateObj = new Date(baseDate);
+        startDateObj.setMonth(startDateObj.getMonth() + (loan.startMonth || 1) - 1);
+        return startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    }
+
+    // Loans table — one ruled row per loan; click opens detail modal
     updateLoansList(loans) {
         const loansList = document.getElementById('loansList');
         if (!loansList) return;
         
         if (loans.length === 0) {
-            loansList.innerHTML = '<p style="color: #666; font-style: italic; font-size: 12px; margin: 0;">No loans added yet</p>';
+            loansList.innerHTML = '<div class="sheet-ruled-row loans-empty">No loans yet…</div>';
             return;
         }
-        
-        const savingsStartDate = document.getElementById('startDate').value;
-        const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
-        
-        loansList.innerHTML = loans.map(loan => {
-            const paymentInfo = loan.isCustomPayment 
-                ? `<strong>$${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 0})}</strong> (Custom)`
-                : `$${loan.monthlyPayment.toLocaleString('en-US', {maximumFractionDigits: 0})} (Min)`;
-            
-            const extraPayment = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
-                ? `<br><small style="color: #28a745;">+$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', {maximumFractionDigits: 0})}/mo extra</small>`
-                : '';
-            
-            // Display start date
-            let startDateDisplay;
-            if (loan.startDate) {
-                const startDateObj = new Date(loan.startDate + '-01');
-                startDateDisplay = startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-            } else {
-                const startDateObj = new Date(baseDate);
-                startDateObj.setMonth(startDateObj.getMonth() + loan.startMonth - 1);
-                startDateDisplay = startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-            }
-            
+
+        const rows = loans.map(loan => {
+            const payment = `$${loan.monthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+            const startDisplay = this.formatLoanStartDisplay(loan);
+
             return `
-                <div class="loan-item">
-                    <div><strong>$${loan.amount.toLocaleString()}</strong> @ ${loan.rate}% / ${loan.term}yr</div>
-                    <div style="margin: 3px 0;">Payment: ${paymentInfo}</div>
-                    <div style="margin: 3px 0;">Starts: ${startDateDisplay}</div>
-                    ${extraPayment}
-                    <button class="remove-loan" onclick="removeLoan(${loan.id})">Remove</button>
-                </div>
+                <tr class="sheet-ruled-row loan-table-row" tabindex="0" role="button"
+                    onclick="showLoanDetail(${loan.id})"
+                    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanDetail(${loan.id});}">
+                    <td>$${loan.amount.toLocaleString()}</td>
+                    <td>${loan.rate}%</td>
+                    <td>${loan.term}yr</td>
+                    <td>${payment}</td>
+                    <td>${startDisplay}</td>
+                </tr>
             `;
         }).join('');
+
+        loansList.innerHTML = `
+            <table class="loans-table">
+                <thead>
+                    <tr class="sheet-ruled-row">
+                        <th>Amount</th>
+                        <th>Rate</th>
+                        <th>Term</th>
+                        <th>Pay</th>
+                        <th>Start</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+    }
+
+    showLoanDetailModal(loan) {
+        const modal = document.getElementById('loanDetailModal');
+        const body = document.getElementById('loanDetailBody');
+        if (!modal || !body || !loan) return;
+
+        const paymentLabel = loan.isCustomPayment ? 'Custom payment' : 'Min payment';
+        const startDisplay = this.formatLoanStartDisplay(loan);
+        const extra = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
+            ? `$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo`
+            : '—';
+
+        body.innerHTML = `
+            <div class="sheet-ruled-row sheet-heading" id="loanDetailHeading">Loan details</div>
+            <div class="sheet-ruled-row"><span class="detail-label">Amount</span><span class="detail-value">$${loan.amount.toLocaleString()}</span></div>
+            <div class="sheet-ruled-row"><span class="detail-label">Rate</span><span class="detail-value">${loan.rate}%</span></div>
+            <div class="sheet-ruled-row"><span class="detail-label">Term</span><span class="detail-value">${loan.term} years</span></div>
+            <div class="sheet-ruled-row"><span class="detail-label">Start</span><span class="detail-value">${startDisplay}</span></div>
+            <div class="sheet-ruled-row"><span class="detail-label">${paymentLabel}</span><span class="detail-value">$${loan.monthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span></div>
+            <div class="sheet-ruled-row"><span class="detail-label">Calculated min</span><span class="detail-value">$${loan.calculatedPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span></div>
+            <div class="sheet-ruled-row"><span class="detail-label">Extra / mo</span><span class="detail-value">${extra}</span></div>
+            <div class="sheet-ruled-row loan-detail-actions">
+                <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeLoan(${loan.id})">Remove loan</button>
+                <button type="button" class="sheet-inline-btn" onclick="closeLoanDetail()">Close</button>
+            </div>
+        `;
+
+        modal.classList.add('is-open');
+        modal.style.display = 'flex';
+        modal.dataset.loanId = String(loan.id);
+    }
+
+    closeLoanDetailModal() {
+        const modal = document.getElementById('loanDetailModal');
+        if (modal) {
+            modal.classList.remove('is-open');
+            modal.style.display = 'none';
+            delete modal.dataset.loanId;
+        }
     }
     
     // Summary Display

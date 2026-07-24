@@ -24,12 +24,11 @@ A simple web application to visualize financial growth over time, including comp
    - Time Period: How many years to project
    - Goal Amount: Optional target amount (chart stops when reached)
 
-3. Add loans by filling out the loan form:
-   - Loan Amount: Total amount borrowed
-   - Loan Interest Rate: Annual interest rate for the loan
-   - Loan Term: How many years to pay off the loan
-   - Start Month: When the loan payments begin
-   - Monthly Payment: Optional custom payment (leave blank for minimum)
+3. Open the drawer and use the **Loans** folder (manila):
+   - Click the rolling pencil **Add Loan** button at the bottom of the folder to open the loose-leaf form
+   - Active loans fill the sheet as a full-width table — click a row for details / Remove
+   - Scroll over the folder to raise the loose-leaf when loan rows are clipped
+   - Switch to the green **Savings** folder tab (sheet content coming later)
 
 4. The chart will show multiple lines:
    - **Green**: Total Savings (with compound growth)

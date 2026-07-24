@@ -5,7 +5,27 @@
 
 class DataManager {
     constructor() {
-        this.loans = [];
+        // Temporary dummy loans so the Active Loans table overflows the pocket (scroll demo).
+        this.loans = [
+            { id: 9001, amount: 320000, rate: 6.5, term: 30, startMonth: 1, startDate: '', monthlyPayment: 2022, calculatedPayment: 2022, isCustomPayment: false },
+            { id: 9002, amount: 28000, rate: 4.9, term: 5, startMonth: 1, startDate: '', monthlyPayment: 527, calculatedPayment: 527, isCustomPayment: false },
+            { id: 9003, amount: 8500, rate: 19.9, term: 4, startMonth: 3, startDate: '', monthlyPayment: 260, calculatedPayment: 260, isCustomPayment: false },
+            { id: 9004, amount: 15000, rate: 7.2, term: 6, startMonth: 2, startDate: '', monthlyPayment: 256, calculatedPayment: 256, isCustomPayment: false },
+            { id: 9005, amount: 4200, rate: 0, term: 2, startMonth: 1, startDate: '', monthlyPayment: 175, calculatedPayment: 175, isCustomPayment: false },
+            { id: 9006, amount: 12000, rate: 5.5, term: 3, startMonth: 4, startDate: '', monthlyPayment: 362, calculatedPayment: 362, isCustomPayment: false },
+            { id: 9007, amount: 45000, rate: 3.9, term: 7, startMonth: 1, startDate: '', monthlyPayment: 612, calculatedPayment: 612, isCustomPayment: false },
+            { id: 9008, amount: 9500, rate: 11.5, term: 5, startMonth: 2, startDate: '', monthlyPayment: 209, calculatedPayment: 209, isCustomPayment: false },
+            { id: 9009, amount: 2200, rate: 0, term: 1, startMonth: 1, startDate: '', monthlyPayment: 183, calculatedPayment: 183, isCustomPayment: false },
+            { id: 9010, amount: 185000, rate: 5.25, term: 15, startMonth: 6, startDate: '', monthlyPayment: 1486, calculatedPayment: 1486, isCustomPayment: false },
+            { id: 9011, amount: 6400, rate: 8.9, term: 4, startMonth: 3, startDate: '', monthlyPayment: 159, calculatedPayment: 159, isCustomPayment: false },
+            { id: 9012, amount: 31000, rate: 6.1, term: 6, startMonth: 1, startDate: '', monthlyPayment: 515, calculatedPayment: 515, isCustomPayment: false },
+            { id: 9013, amount: 1100, rate: 22.9, term: 2, startMonth: 5, startDate: '', monthlyPayment: 58, calculatedPayment: 58, isCustomPayment: false },
+            { id: 9014, amount: 75000, rate: 4.2, term: 10, startMonth: 2, startDate: '', monthlyPayment: 767, calculatedPayment: 767, isCustomPayment: false },
+            { id: 9015, amount: 18000, rate: 9.4, term: 5, startMonth: 4, startDate: '', monthlyPayment: 377, calculatedPayment: 377, isCustomPayment: false },
+            { id: 9016, amount: 5500, rate: 14.9, term: 3, startMonth: 1, startDate: '', monthlyPayment: 190, calculatedPayment: 190, isCustomPayment: false },
+            { id: 9017, amount: 99000, rate: 5.8, term: 12, startMonth: 8, startDate: '', monthlyPayment: 958, calculatedPayment: 958, isCustomPayment: false },
+            { id: 9018, amount: 3400, rate: 0, term: 2, startMonth: 2, startDate: '', monthlyPayment: 142, calculatedPayment: 142, isCustomPayment: false }
+        ];
         this.overrides = {};
         this.calculator = null; // Will be injected by app
     }
@@ -17,6 +37,10 @@ class DataManager {
     // Loan Management
     getLoans() {
         return this.loans;
+    }
+
+    getLoanById(loanId) {
+        return this.loans.find(loan => loan.id === loanId) || null;
     }
     
     addLoan(loan) {

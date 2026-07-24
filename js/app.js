@@ -48,6 +48,9 @@ class FinanceApp {
         
         // Set default values
         this.setDefaultValues();
+
+        // Render loans list (includes temporary dummy loans for folder scroll testing)
+        this.uiManager.updateLoansList(this.dataManager.getLoans());
         
         // Initial chart update
         this.updateChart();
@@ -128,12 +131,38 @@ class FinanceApp {
         this.uiManager.updateLoansList(this.dataManager.getLoans());
         this.updateChart();
         this.uiManager.clearLoanForm();
+        this.uiManager.closeAddLoanForm();
+        if (typeof resetFolderSheetRaise === 'function') {
+            resetFolderSheetRaise();
+        }
+    }
+
+    showAddLoanForm() {
+        this.uiManager.showAddLoanForm();
+    }
+
+    closeAddLoanForm() {
+        this.uiManager.closeAddLoanForm();
     }
     
     removeLoan(loanId) {
         this.dataManager.removeLoan(loanId);
         this.uiManager.updateLoansList(this.dataManager.getLoans());
+        this.uiManager.closeLoanDetailModal();
         this.updateChart();
+        if (typeof resetFolderSheetRaise === 'function') {
+            resetFolderSheetRaise();
+        }
+    }
+
+    showLoanDetail(loanId) {
+        const loan = this.dataManager.getLoanById(loanId);
+        if (!loan) return;
+        this.uiManager.showLoanDetailModal(loan);
+    }
+
+    closeLoanDetail() {
+        this.uiManager.closeLoanDetailModal();
     }
     
     clearAllLoans() {
@@ -142,7 +171,11 @@ class FinanceApp {
         if (confirm('Are you sure you want to remove all loans?')) {
             this.dataManager.clearAllLoans();
             this.uiManager.updateLoansList([]);
+            this.uiManager.closeLoanDetailModal();
             this.updateChart();
+            if (typeof resetFolderSheetRaise === 'function') {
+                resetFolderSheetRaise();
+            }
         }
     }
     
@@ -209,6 +242,18 @@ function addLoan() {
 }
 function removeLoan(id) { 
     if (app) app.removeLoan(id); 
+}
+function showLoanDetail(id) {
+    if (app) app.showLoanDetail(id);
+}
+function closeLoanDetail() {
+    if (app) app.closeLoanDetail();
+}
+function showAddLoanForm() {
+    if (app) app.showAddLoanForm();
+}
+function closeAddLoanForm() {
+    if (app) app.closeAddLoanForm();
 }
 function clearAllLoans() { 
     if (app) app.clearAllLoans(); 

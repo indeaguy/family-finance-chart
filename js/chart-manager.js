@@ -63,8 +63,8 @@ class ChartManager {
                 secondsVisible: false,
                 fixLeftEdge: false,
                 fixRightEdge: false,
-                rightOffset: 5,
-                leftOffset: 5,
+                rightOffset: 10,
+                leftOffset: 10,
             },
             crosshair: {
                 mode: LightweightCharts.CrosshairMode.Normal,
@@ -119,8 +119,8 @@ class ChartManager {
             this.addGoalLine(chart, results);
             this.addLoanPayoffMarkers(chart, results);
             
-            // Apply chart styling and fit content
-            this.applyChartStyling(chart);
+            // Apply chart styling with zoom-out padding
+            this.applyChartStyling(chart, results);
             
         } catch (error) {
             console.error('Error updating chart:', error);
@@ -238,7 +238,9 @@ class ChartManager {
         }
     }
     
-    applyChartStyling(chart) {
+    applyChartStyling(chart, results) {
+        // Apply chart styling with automatic zoom-out for breathing room
+        
         chart.applyOptions({
             rightPriceScale: {
                 autoScale: true,
@@ -248,11 +250,12 @@ class ChartManager {
                 }
             },
             timeScale: {
-                rightOffset: 5,
-                leftOffset: 5,
+                rightOffset: 10,
+                leftOffset: 10,
             }
         });
         
+        // Simple fit content - visual padding handled by CSS
         chart.timeScale().fitContent();
     }
     

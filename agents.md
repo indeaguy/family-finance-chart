@@ -90,7 +90,7 @@ ui-manager.js    override-manager.js  utilities.js
 **Purpose**: All UI operations and form handling
 **Responsibilities**:
 - Form data collection and validation
-- Loans list display and updates
+- Loans table (full-width ruled rows), rolling pencil Add Loan control, and loose-leaf add/detail modals
 - Summary display management
 - File operations (download/upload)
 
@@ -120,6 +120,8 @@ ui-manager.js    override-manager.js  utilities.js
 - Currency and time formatting
 - Summary overlay management
 - Drawer functionality
+- Folder sheet tab switching (Loans manila / Savings green folders)
+- Loose-leaf raise scrolling (only when pocket content overflows; sheet lifts to reveal the clipped portion)
 - Chart header management
 - Modal click-outside-to-close behavior
 
