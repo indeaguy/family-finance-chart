@@ -1,6 +1,9 @@
 /**
- * Override Manager Component
- * Handles financial overrides functionality
+ * Savings + loan-balance override modal: CRUD, date conversion, list rendering.
+ * Defines globals: OverrideManager (HTML onclick wrappers live in app.js)
+ * Depends on: DataManager and UIManager (injected); DOM: #netWorthOverridesModal,
+ *   #netWorthOverridesList, #overrideDate, #overrideSavings, #overrideLoanBalance,
+ *   #startDate, #timePeriod
  */
 
 class OverrideManager {

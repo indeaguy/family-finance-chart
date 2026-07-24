@@ -1,6 +1,9 @@
 /**
- * Data Manager Component
- * Handles all data storage and management
+ * In-memory loans/overrides store plus JSON import/export and loan payment validation.
+ * Defines globals: DataManager
+ * Depends on: DOM savings/chart-header fields when exporting (#startDate, #initialAmount,
+ *   #monthlySavings, #interestRate, #timePeriod, #goalAmount, #chartTitle, etc.)
+ * Owns: loans[], financialOverrides[]; createLoan / addLoan / removeLoan / exportData / importData
  */
 
 class DataManager {

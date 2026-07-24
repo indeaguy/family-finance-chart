@@ -1,6 +1,12 @@
 /**
- * Family Finance Chart - Main Application
- * Central controller that coordinates all components
+ * Main orchestrator: wires components, owns chart lifecycle, exposes HTML onclick globals.
+ * Defines globals: FinanceApp, app / window.app, addLoan, removeLoan, showLoanDetail,
+ *   closeLoanDetail, showAddLoanForm, closeAddLoanForm, clearAllLoans, exportToJSON,
+ *   importFromJSON, showNetWorthOverrides, closeNetWorthOverrides,
+ *   addNetWorthOverrideFromForm, removeNetWorthOverride
+ * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
+ *   folder-sheet.js (resetFolderSheetRaise after loan list changes);
+ *   DOM: #chart, savings form inputs, #loanStartDate, #jsonFileInput
  */
 
 class FinanceApp {

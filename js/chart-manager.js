@@ -1,6 +1,8 @@
 /**
- * Chart Manager Component
- * Handles all chart-related operations
+ * LightweightCharts setup: series (savings, net worth, loans, goal), markers, hover, resize.
+ * Defines globals: ChartManager
+ * Depends on: window.LightweightCharts; summary-overlay.js (window.showChartHover on crosshair);
+ *   DOM: #chart container (passed into createChart)
  */
 
 class ChartManager {

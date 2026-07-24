@@ -1,6 +1,11 @@
 /**
- * Finance Calculator Component
- * Handles all financial calculations
+ * Compound-interest and loan amortization math; builds chart data points and payoff markers.
+ * Defines globals: FinanceCalculator
+ * Depends on: DataManager (injected via setDataManager) for loans and overrides;
+ *   DOM form inputs: #initialAmount, #monthlySavings, #interestRate, #timePeriod,
+ *   #goalAmount, #startDate
+ * Note: summary-overlay.js duplicates some compound-interest math for the overlay;
+ * formula changes must be applied in both places.
  */
 
 class FinanceCalculator {

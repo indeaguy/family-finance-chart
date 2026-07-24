@@ -65,10 +65,13 @@ A simple web application to visualize financial growth over time, including comp
 ## Technical Details
 
 - Uses TradingView's Lightweight Charts library for professional-grade charting
-- Pure HTML/CSS/JavaScript - no build process required
+- Pure HTML/CSS/JavaScript — no build process required; open `index.html` directly
+- Styles split by concern under `css/`: `base.css`, `drawer.css`, `folder.css`, `overlays.css`
+- Scripts under `js/`: UI helpers (`format.js`, `folder-sheet.js`, `drawer.js`, `summary-overlay.js`) plus core modules (`calculator.js`, `chart-manager.js`, `data-manager.js`, `ui-manager.js`, `override-manager.js`, `app.js`)
 - Calculations include compound interest and loan amortization schedules
 - Real-time updates with input debouncing for smooth performance
 - JSON-based configuration system for saving/loading scenarios
+- See `AGENTS.md` for the file map, load order, and DOM ownership (useful when editing)
 
 ## Getting Started
 

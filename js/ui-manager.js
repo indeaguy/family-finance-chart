@@ -1,6 +1,9 @@
 /**
- * UI Manager Component
- * Handles all user interface operations
+ * Form collection/validation, loans list table, loan detail/add-loan modals, JSON download.
+ * Defines globals: UIManager
+ * Depends on: DOM loan form fields, #loansList, #addLoanModal, #loanDetailModal,
+ *   #loanDetailBody, savings form fields for loadDataToForm; formatCurrency is a method here
+ *   (separate from format.js globals used by the summary overlay)
  */
 
 class UIManager {
