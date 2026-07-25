@@ -6,7 +6,8 @@
  *   addNetWorthOverrideFromForm, removeNetWorthOverride
  * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
  *   folder-sheet.js (resetFolderSheetRaise after loan list changes);
- *   DOM: #chart, savings form inputs, #loanStartDate, #jsonFileInput
+ *   field-model via UIManager.ensureLoanFormFields before loan DOM listeners;
+ *   DOM: #chart, savings form inputs, #addLoanFormFields / #loanStartDate, #jsonFileInput
  */
 
 class FinanceApp {
@@ -48,6 +49,9 @@ class FinanceApp {
     init() {
         // Initialize chart
         this.initializeChart();
+
+        // Build schema-driven loan form before listeners/defaults touch #loanAmount etc.
+        this.uiManager.ensureLoanFormFields();
         
         // Set up event listeners
         this.setupEventListeners();

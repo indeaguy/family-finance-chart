@@ -4,6 +4,7 @@
  * Depends on: DataManager (injected via setDataManager) for loans and overrides;
  *   DOM form inputs: #initialAmount, #monthlySavings, #interestRate, #timePeriod,
  *   #goalAmount, #startDate
+ * Owns: calculateMonthlyPayment, remainingBalanceAsOf (single-loan amortize through a date)
  * Note: summary-overlay.js duplicates some compound-interest math for the overlay;
  * formula changes must be applied in both places.
  */
@@ -237,5 +238,50 @@ class FinanceCalculator {
         
         return amount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
                (Math.pow(1 + monthlyRate, numPayments) - 1);
+    }
+
+    /**
+     * Amortize a single loan from its start through asOfDate's calendar month.
+     * Future-start loans return the original amount. Must match calculateLoanPayments math.
+     */
+    remainingBalanceAsOf(loan, asOfDate = new Date(), baseDate = null) {
+        if (!loan || !Number.isFinite(loan.amount)) return 0;
+
+        // Parse YYYY-MM as local calendar months — `new Date('YYYY-MM-01')` is UTC and
+        // shifts the month westward of UTC.
+        let startMonthDate;
+        if (loan.startDate && /^\d{4}-\d{2}$/.test(loan.startDate)) {
+            const [y, m] = loan.startDate.split('-').map(Number);
+            startMonthDate = new Date(y, m - 1, 1);
+        } else if (baseDate) {
+            startMonthDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+            startMonthDate.setMonth(startMonthDate.getMonth() + (loan.startMonth || 1) - 1);
+        } else {
+            return loan.amount;
+        }
+
+        if (Number.isNaN(startMonthDate.getTime())) return loan.amount;
+
+        const asOf = new Date(asOfDate.getFullYear(), asOfDate.getMonth(), 1);
+        const startMonth = startMonthDate;
+        if (asOf < startMonth) return loan.amount;
+
+        const monthsElapsed =
+            (asOf.getFullYear() - startMonth.getFullYear()) * 12 +
+            (asOf.getMonth() - startMonth.getMonth()) + 1;
+
+        let balance = loan.amount;
+        const payment = loan.monthlyPayment;
+        const rate = loan.rate || 0;
+
+        for (let i = 0; i < monthsElapsed; i++) {
+            if (balance <= 0) return 0;
+            const monthlyInterest = balance * (rate / 100 / 12);
+            const monthlyPrincipal = Math.min(payment - monthlyInterest, balance);
+            balance -= monthlyPrincipal;
+            if (balance < 0) balance = 0;
+        }
+
+        return balance;
     }
 }

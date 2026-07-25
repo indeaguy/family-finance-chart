@@ -1,23 +1,49 @@
 /**
  * Form collection/validation, loans list (ruled-row grid), loan detail/add-loan modals, JSON download.
  * Defines globals: UIManager
- * Depends on: DOM loan form fields, #loansList, #addLoanModal, #loanDetailModal,
- *   #loanDetailBody, savings form fields for loadDataToForm; formatCurrency is a method here
- *   (separate from format.js globals used by the summary overlay)
+ * Depends on: LOAN_FIELDS + field-model helpers (renderFormFields, renderTable, renderDetailRows,
+ *   filterFields, readFormValue); DOM #addLoanFormFields, #loansList, #addLoanModal,
+ *   #loanDetailModal, #loanDetailBody, savings form fields for loadDataToForm;
+ *   formatCurrency is a method here (separate from format.js globals used by the summary overlay)
  */
 
 class UIManager {
     constructor() {
         this.currentChartData = [];
+        this.loanFormBuilt = false;
+    }
+
+    ensureLoanFormFields() {
+        const container = document.getElementById('addLoanFormFields');
+        if (!container || this.loanFormBuilt) return;
+        renderFormFields(container, LOAN_FIELDS);
+        this.loanFormBuilt = true;
+    }
+
+    getLoanFieldContext() {
+        if (window.app && window.app.dataManager) {
+            return { ...window.app.dataManager.getLoanFieldContext(), surface: 'table' };
+        }
+        const savingsStartDate = document.getElementById('startDate')?.value;
+        const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+        return { baseDate, asOfDate: new Date(), surface: 'table' };
     }
     
     // Form Data Management
     getLoanFormData() {
-        const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
-        const rate = parseFloat(document.getElementById('loanRate').value) || 0;
-        const term = parseInt(document.getElementById('loanTerm').value) || 1;
-        const startDate = document.getElementById('loanStartDate').value;
-        const customPayment = parseFloat(document.getElementById('loanMonthlyPayment').value) || 0;
+        this.ensureLoanFormFields();
+
+        const amountField = LOAN_FIELDS.find(f => f.key === 'amount');
+        const rateField = LOAN_FIELDS.find(f => f.key === 'rate');
+        const termField = LOAN_FIELDS.find(f => f.key === 'term');
+        const startField = LOAN_FIELDS.find(f => f.key === 'startDate');
+        const paymentField = LOAN_FIELDS.find(f => f.key === 'monthlyPayment');
+
+        const amount = readFormValue(amountField, document.getElementById(amountField.domId)) || 0;
+        const rate = readFormValue(rateField, document.getElementById(rateField.domId)) || 0;
+        const term = readFormValue(termField, document.getElementById(termField.domId)) || 1;
+        const startDate = readFormValue(startField, document.getElementById(startField.domId));
+        const customPayment = readFormValue(paymentField, document.getElementById(paymentField.domId)) || 0;
         
         if (amount <= 0) {
             alert('Please enter a valid loan amount');
@@ -54,17 +80,17 @@ class UIManager {
     }
     
     clearLoanForm() {
-        const amount = document.getElementById('loanAmount');
-        const rate = document.getElementById('loanRate');
-        const term = document.getElementById('loanTerm');
+        this.ensureLoanFormFields();
+
+        filterFields(LOAN_FIELDS, 'form').forEach(field => {
+            const el = document.getElementById(field.domId || field.key);
+            if (!el) return;
+            if (field.key === 'startDate') return;
+            const def = field.default !== undefined && field.default !== null ? field.default : '';
+            el.value = def;
+        });
+
         const startDate = document.getElementById('loanStartDate');
-        const payment = document.getElementById('loanMonthlyPayment');
-
-        if (amount) amount.value = '200000';
-        if (rate) rate.value = '4.5';
-        if (term) term.value = '30';
-        if (payment) payment.value = '';
-
         if (startDate) {
             const savingsStart = document.getElementById('startDate')?.value;
             if (savingsStart) {
@@ -79,6 +105,7 @@ class UIManager {
     showAddLoanForm() {
         const modal = document.getElementById('addLoanModal');
         if (!modal) return;
+        this.ensureLoanFormFields();
         this.clearLoanForm();
         this.updateLoanPaymentPlaceholder();
         modal.classList.add('is-open');
@@ -117,63 +144,25 @@ class UIManager {
             if (visibleEl) visibleEl.value = data.chartHeader.visible !== false ? 'true' : 'false';
         }
     }
-    
-    formatLoanStartDisplay(loan) {
-        const savingsStartDate = document.getElementById('startDate')?.value;
-        const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
-
-        if (loan.startDate) {
-            return new Date(loan.startDate + '-01').toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short'
-            });
-        }
-
-        const startDateObj = new Date(baseDate);
-        startDateObj.setMonth(startDateObj.getMonth() + (loan.startMonth || 1) - 1);
-        return startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-    }
 
     // Loans list — one .sheet-ruled-row per line (div grid, not <table>;
     // table rows ignore max-height and drift off the paper rules)
     updateLoansList(loans) {
         const loansList = document.getElementById('loansList');
         if (!loansList) return;
-        
-        if (loans.length === 0) {
-            loansList.innerHTML = '<div class="sheet-ruled-row loans-empty">No loans yet…</div>';
-            return;
-        }
 
-        const rows = loans.map(loan => {
-            const payment = `$${loan.monthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-            const startDisplay = this.formatLoanStartDisplay(loan);
+        const ctx = this.getLoanFieldContext();
+        ctx.surface = 'table';
 
-            return `
-                <div class="sheet-ruled-row loan-table-row" role="row" tabindex="0"
-                    onclick="showLoanDetail(${loan.id})"
-                    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanDetail(${loan.id});}">
-                    <span role="cell">$${loan.amount.toLocaleString()}</span>
-                    <span role="cell">${loan.rate}%</span>
-                    <span role="cell">${loan.term}yr</span>
-                    <span role="cell">${payment}</span>
-                    <span role="cell">${startDisplay}</span>
-                </div>
-            `;
-        }).join('');
-
-        loansList.innerHTML = `
-            <div class="loans-table" role="table" aria-label="Active loans">
-                <div class="sheet-ruled-row loans-table-header" role="row">
-                    <span role="columnheader">Amount</span>
-                    <span role="columnheader">Rate</span>
-                    <span role="columnheader">Term</span>
-                    <span role="columnheader">Pay</span>
-                    <span role="columnheader">Start</span>
-                </div>
-                ${rows}
-            </div>
-        `;
+        renderTable(loansList, loans, LOAN_FIELDS, {
+            ariaLabel: 'Active loans',
+            rowClass: 'loan-table-row',
+            emptyMessage: 'No loans yet…',
+            ctx,
+            getRowAttrs: (loan) =>
+                `tabindex="0" onclick="showLoanDetail(${loan.id})" ` +
+                `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanDetail(${loan.id});}"`
+        });
     }
 
     showLoanDetailModal(loan) {
@@ -181,20 +170,16 @@ class UIManager {
         const body = document.getElementById('loanDetailBody');
         if (!modal || !body || !loan) return;
 
-        const paymentLabel = loan.isCustomPayment ? 'Custom payment' : 'Min payment';
-        const startDisplay = this.formatLoanStartDisplay(loan);
+        const ctx = this.getLoanFieldContext();
+        ctx.surface = 'detail';
+
         const extra = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
             ? `$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo`
             : '—';
 
         body.innerHTML = `
             <div class="sheet-ruled-row sheet-heading" id="loanDetailHeading">Loan details</div>
-            <div class="sheet-ruled-row"><span class="detail-label">Amount</span><span class="detail-value">$${loan.amount.toLocaleString()}</span></div>
-            <div class="sheet-ruled-row"><span class="detail-label">Rate</span><span class="detail-value">${loan.rate}%</span></div>
-            <div class="sheet-ruled-row"><span class="detail-label">Term</span><span class="detail-value">${loan.term} years</span></div>
-            <div class="sheet-ruled-row"><span class="detail-label">Start</span><span class="detail-value">${startDisplay}</span></div>
-            <div class="sheet-ruled-row"><span class="detail-label">${paymentLabel}</span><span class="detail-value">$${loan.monthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span></div>
-            <div class="sheet-ruled-row"><span class="detail-label">Calculated min</span><span class="detail-value">$${loan.calculatedPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span></div>
+            ${renderDetailRows(LOAN_FIELDS, loan, ctx)}
             <div class="sheet-ruled-row"><span class="detail-label">Extra / mo</span><span class="detail-value">${extra}</span></div>
             <div class="sheet-ruled-row loan-detail-actions">
                 <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeLoan(${loan.id})">Remove loan</button>
@@ -246,9 +231,11 @@ class UIManager {
     
     // Loan Payment Placeholder
     updateLoanPaymentPlaceholder() {
-        const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
-        const rate = parseFloat(document.getElementById('loanRate').value) || 0;
-        const term = parseInt(document.getElementById('loanTerm').value) || 1;
+        this.ensureLoanFormFields();
+
+        const amount = parseFloat(document.getElementById('loanAmount')?.value) || 0;
+        const rate = parseFloat(document.getElementById('loanRate')?.value) || 0;
+        const term = parseInt(document.getElementById('loanTerm')?.value, 10) || 1;
         const paymentInput = document.getElementById('loanMonthlyPayment');
         
         if (!paymentInput) return;

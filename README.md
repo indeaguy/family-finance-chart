@@ -67,7 +67,7 @@ A simple web application to visualize financial growth over time, including comp
 - Uses TradingView's Lightweight Charts library for professional-grade charting
 - Pure HTML/CSS/JavaScript — no build process required; open `index.html` directly
 - Styles split by concern under `css/`: `base.css`, `drawer.css`, `folder.css`, `overlays.css`
-- Scripts under `js/`: UI helpers (`format.js`, `folder-sheet.js`, `drawer.js`, `summary-overlay.js`) plus core modules (`calculator.js`, `chart-manager.js`, `data-manager.js`, `ui-manager.js`, `override-manager.js`, `app.js`)
+- Scripts under `js/`: UI helpers (`format.js`, `folder-sheet.js`, `drawer.js`, `summary-overlay.js`) plus core modules (`calculator.js`, `chart-manager.js`, `field-model.js`, `data-manager.js`, `ui-manager.js`, `override-manager.js`, `app.js`)
 - Calculations include compound interest and loan amortization schedules
 - Real-time updates with input debouncing for smooth performance
 - JSON-based configuration system for saving/loading scenarios
@@ -83,7 +83,12 @@ Try importing `example.json` to see a realistic financial scenario in action.
 
 ```bash
 npm install
-npm test
+npm test              # unit + UI suites
+npm run test:unit     # field-model / LOAN_FIELDS / remaining balance (no Chrome)
+npm run test:ui       # loose-leaf row alignment (needs Chrome)
 ```
 
-`npm test` runs a headless Chrome check that every Loans loose-leaf `.sheet-ruled-row` sits on the `--leaf-line` grid (prevents table-row height drift). Set `CHROME_PATH` if Chrome is not at the macOS default location.
+- **Unit** (`tests/field-model.mjs`): field-schema helpers, loan surface/order, JSON serialize/hydrate, `remainingBalanceAsOf`.
+- **UI** (`tests/loose-leaf-alignment.mjs`): every Loans loose-leaf `.sheet-ruled-row` sits on the `--leaf-line` grid (prevents table-row height drift). Set `CHROME_PATH` if Chrome is not at the macOS default location.
+
+See `AGENTS.md` → **Tests** for when to run which suite after a change.

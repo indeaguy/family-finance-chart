@@ -150,26 +150,7 @@
             <button type="button" class="loose-leaf-sheet-x" onclick="closeAddLoanForm()" aria-label="Close">&times;</button>
             <div class="loose-leaf-sheet-body">
                 <div class="sheet-ruled-row sheet-heading" id="addLoanHeading">Add Loan</div>
-                <div class="sheet-ruled-row input-row">
-                    <label for="loanAmount">Amount ($)</label>
-                    <input type="number" id="loanAmount" value="200000" min="0">
-                </div>
-                <div class="sheet-ruled-row input-row">
-                    <label for="loanRate">Rate (%)</label>
-                    <input type="number" id="loanRate" value="4.5" min="0" max="30" step="0.1">
-                </div>
-                <div class="sheet-ruled-row input-row">
-                    <label for="loanTerm">Term (years)</label>
-                    <input type="number" id="loanTerm" value="30" min="1" max="50">
-                </div>
-                <div class="sheet-ruled-row input-row">
-                    <label for="loanStartDate">Start Date</label>
-                    <input type="month" id="loanStartDate" value="">
-                </div>
-                <div class="sheet-ruled-row input-row">
-                    <label for="loanMonthlyPayment">Payment ($)</label>
-                    <input type="number" id="loanMonthlyPayment" placeholder="Auto-calc" min="0">
-                </div>
+                <div id="addLoanFormFields"></div>
                 <div class="sheet-ruled-row">
                     <button type="button" class="sheet-inline-btn" onclick="addLoan()">Save loan</button>
                     <button type="button" class="sheet-inline-btn" onclick="closeAddLoanForm()">Cancel</button>
@@ -261,6 +242,7 @@
     <script src="js/summary-overlay.js"></script>
     <script src="js/calculator.js"></script>
     <script src="js/chart-manager.js"></script>
+    <script src="js/field-model.js"></script>
     <script src="js/data-manager.js"></script>
     <script src="js/ui-manager.js"></script>
     <script src="js/override-manager.js"></script>

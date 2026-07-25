@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/loose-leaf-alignment.mjs"
+    "test": "node tests/run.mjs",
+    "test:unit": "node tests/field-model.mjs",
+    "test:ui": "node tests/loose-leaf-alignment.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.54.2"

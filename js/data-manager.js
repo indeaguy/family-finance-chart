@@ -1,10 +1,173 @@
 /**
  * In-memory loans/overrides store plus JSON import/export and loan payment validation.
- * Defines globals: DataManager
- * Depends on: DOM savings/chart-header fields when exporting (#startDate, #initialAmount,
+ * Defines globals: DataManager, LOAN_FIELDS
+ * Depends on: field-model.js (serializeEntity, hydrateEntity); FinanceCalculator (injected);
+ *   DOM savings/chart-header fields when exporting (#startDate, #initialAmount,
  *   #monthlySavings, #interestRate, #timePeriod, #goalAmount, #chartTitle, etc.)
  * Owns: loans[], financialOverrides[]; createLoan / addLoan / removeLoan / exportData / importData
+ *
+ * Field schemas live with their owner store. LOAN_FIELDS drives form/table/detail/JSON via
+ * field-model helpers; next entity should add its own *_FIELDS array the same way.
  */
+
+/** @type {Array<object>} */
+const LOAN_FIELDS = [
+    {
+        key: 'amount',
+        label: 'Amount',
+        type: 'currency',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        domId: 'loanAmount',
+        formLabel: 'Amount ($)',
+        default: 200000,
+        inputAttrs: { min: '0' }
+    },
+    {
+        key: 'rate',
+        label: 'Rate',
+        type: 'percent',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        domId: 'loanRate',
+        formLabel: 'Rate (%)',
+        default: 4.5,
+        inputAttrs: { min: '0', max: '30', step: '0.1' }
+    },
+    {
+        key: 'term',
+        label: 'Term',
+        type: 'years',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        domId: 'loanTerm',
+        formLabel: 'Term (years)',
+        default: 30,
+        inputAttrs: { min: '1', max: '50' },
+        display: (loan, ctx) => {
+            if (ctx && ctx.surface === 'detail') return `${loan.term} years`;
+            return `${loan.term}yr`;
+        }
+    },
+    {
+        key: 'startDate',
+        label: 'Start',
+        type: 'month',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 4,
+        tableOrder: 5,
+        detailOrder: 4,
+        domId: 'loanStartDate',
+        formLabel: 'Start Date',
+        default: '',
+        display: (loan, ctx) => {
+            const baseDate = ctx && ctx.baseDate ? ctx.baseDate : null;
+            if (loan.startDate) {
+                return new Date(loan.startDate + '-01').toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short'
+                });
+            }
+            if (!baseDate) return '—';
+            const startDateObj = new Date(baseDate);
+            startDateObj.setMonth(startDateObj.getMonth() + (loan.startMonth || 1) - 1);
+            return startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        }
+    },
+    {
+        key: 'monthlyPayment',
+        label: 'Pay',
+        type: 'currency',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 5,
+        tableOrder: 4,
+        detailOrder: 5,
+        domId: 'loanMonthlyPayment',
+        formLabel: 'Payment ($)',
+        default: '',
+        inputAttrs: { min: '0', placeholder: 'Auto-calc' },
+        detailLabel: (loan) => (loan.isCustomPayment ? 'Custom payment' : 'Min payment'),
+        // Preserve export quirk: null when not a custom payment
+        exportValue: (loan) => (loan.isCustomPayment ? loan.monthlyPayment : null)
+    },
+    {
+        key: 'isCustomPayment',
+        label: 'Custom payment',
+        type: 'boolean',
+        form: false,
+        table: false,
+        detail: false,
+        export: true,
+        import: true,
+        default: false
+    },
+    {
+        key: 'startMonth',
+        label: 'Start month',
+        type: 'number',
+        form: false,
+        table: false,
+        detail: false,
+        export: true,
+        import: true,
+        default: 1
+    },
+    {
+        key: 'calculatedPayment',
+        label: 'Calculated min',
+        type: 'currency',
+        form: false,
+        table: false,
+        detail: true,
+        detailOrder: 6,
+        export: false,
+        import: false
+    },
+    {
+        key: 'remainingBalance',
+        label: 'Balance',
+        type: 'currency',
+        form: false,
+        table: true,
+        detail: true,
+        tableOrder: 6,
+        detailOrder: 7,
+        export: false,
+        import: false,
+        computed: true,
+        compute: (loan, ctx) => {
+            if (!ctx || !ctx.calculator) return loan.amount;
+            return ctx.calculator.remainingBalanceAsOf(loan, ctx.asOfDate || new Date(), ctx.baseDate);
+        }
+    },
+    {
+        key: 'id',
+        label: 'Id',
+        type: 'number',
+        form: false,
+        table: false,
+        detail: false,
+        export: false,
+        import: false
+    }
+];
 
 class DataManager {
     constructor() {
@@ -35,6 +198,16 @@ class DataManager {
     
     setCalculator(calculator) {
         this.calculator = calculator;
+    }
+
+    getLoanFieldContext() {
+        const savingsStartDate = document.getElementById('startDate')?.value;
+        const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+        return {
+            calculator: this.calculator,
+            baseDate,
+            asOfDate: new Date()
+        };
     }
     
     // Loan Management
@@ -130,15 +303,7 @@ class DataManager {
                 position: document.getElementById('chartHeaderPos')?.value || 'top-left',
                 visible: document.getElementById('chartHeaderVisible')?.value === 'true'
             },
-            loans: this.loans.map(loan => ({
-                amount: loan.amount,
-                rate: loan.rate,
-                term: loan.term,
-                startMonth: loan.startMonth,
-                startDate: loan.startDate,
-                monthlyPayment: loan.isCustomPayment ? loan.monthlyPayment : null,
-                isCustomPayment: loan.isCustomPayment
-            })),
+            loans: this.loans.map(loan => serializeEntity(loan, LOAN_FIELDS)),
             exportDate: new Date().toISOString(),
             version: '2.0'
         };
@@ -187,19 +352,21 @@ class DataManager {
                 const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
                 
                 this.loans = data.loans.map((loanData, index) => {
+                    const hydrated = hydrateEntity(loanData, LOAN_FIELDS);
+
                     const calculatedPayment = this.calculator.calculateMonthlyPayment(
-                        loanData.amount, 
-                        loanData.rate, 
-                        loanData.term
+                        hydrated.amount, 
+                        hydrated.rate, 
+                        hydrated.term
                     );
                     
-                    const monthlyPayment = loanData.isCustomPayment && loanData.monthlyPayment 
-                        ? loanData.monthlyPayment 
+                    const monthlyPayment = hydrated.isCustomPayment && hydrated.monthlyPayment 
+                        ? hydrated.monthlyPayment 
                         : calculatedPayment;
                     
                     // Handle start date
-                    let startDate = loanData.startDate;
-                    let startMonth = loanData.startMonth || 1;
+                    let startDate = hydrated.startDate;
+                    let startMonth = hydrated.startMonth || 1;
                     
                     if (!startDate && startMonth) {
                         const calculatedDate = new Date(baseDate);
@@ -209,14 +376,14 @@ class DataManager {
                     
                     return {
                         id: Date.now() + index,
-                        amount: loanData.amount,
-                        rate: loanData.rate,
-                        term: loanData.term,
+                        amount: hydrated.amount,
+                        rate: hydrated.rate,
+                        term: hydrated.term,
                         startMonth: startMonth,
                         startDate: startDate,
                         monthlyPayment: monthlyPayment,
                         calculatedPayment: calculatedPayment,
-                        isCustomPayment: loanData.isCustomPayment || false
+                        isCustomPayment: hydrated.isCustomPayment || false
                     };
                 });
             }
