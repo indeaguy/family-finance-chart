@@ -26,7 +26,7 @@ A simple web application to visualize financial growth over time, including comp
 
 3. Open the drawer and use the **Loans** folder (manila):
    - Click the rolling pencil **Add Loan** button at the bottom of the folder to open the loose-leaf form
-   - Active loans fill the sheet as a full-width table — click a row for details / Remove
+   - Active loans fill the sheet as ruled rows — click a row for details / Remove
    - Scroll over the folder to raise the loose-leaf when loan rows are clipped
    - Switch to the green **Savings** folder tab (sheet content coming later)
 
@@ -78,3 +78,12 @@ A simple web application to visualize financial growth over time, including comp
 Simply open `index.html` in any modern web browser. No server or installation required!
 
 Try importing `example.json` to see a realistic financial scenario in action.
+
+## Tests
+
+```bash
+npm install
+npm test
+```
+
+`npm test` runs a headless Chrome check that every Loans loose-leaf `.sheet-ruled-row` sits on the `--leaf-line` grid (prevents table-row height drift). Set `CHROME_PATH` if Chrome is not at the macOS default location.

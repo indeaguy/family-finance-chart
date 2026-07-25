@@ -9,7 +9,8 @@ Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional
 | Chart series, markers, hover, resize | `js/chart-manager.js` |
 | Compound interest / loan amortization math | `js/calculator.js` |
 | Loans/overrides store, JSON import/export | `js/data-manager.js` |
-| Forms, loans table, loan modals, download | `js/ui-manager.js` |
+| Forms, loans list, loan modals, download | `js/ui-manager.js` |
+| Loose-leaf line/text alignment regression | `tests/loose-leaf-alignment.mjs` (`npm test`) |
 | Net-worth override modal | `js/override-manager.js` |
 | Wire-up, lifecycle, HTML onclick globals | `js/app.js` |
 | Drawer open/close + handle animation | `js/drawer.js` + `css/drawer.css` |
@@ -94,6 +95,14 @@ Do not “fix” these in drive-by refactors; document and keep in sync:
 3. **`chart-manager.js`** calls **`window.showChartHover`** (from `summary-overlay.js`) on crosshair move.
 4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, loan modals, and overrides (via `app.js` globals).
 5. **`UIManager.formatCurrency`** is separate from the global `formatCurrency` in `format.js` — same idea, two call sites.
+
+## Loose-leaf line grid invariant (load-bearing)
+
+Ruled paper uses a repeating background stepped by `--leaf-line` (28px). Every `.sheet-ruled-row` on that sheet must occupy exactly one step — top offset `n * --leaf-line` from the sheet top.
+
+- Do **not** render the loans list as a `<table>` / `<tr>`: table rows ignore `max-height` and grow (~33px), so text drifts off the blue lines.
+- Keep loans as `div.sheet-ruled-row` children inside `.loans-table` (CSS grid columns) in `ui-manager.js` + `css/folder.css`.
+- Guard: `npm test` → `tests/loose-leaf-alignment.mjs` (needs Chrome, or `CHROME_PATH`).
 
 ## Handle animation invariants (load-bearing)
 

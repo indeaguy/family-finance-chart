@@ -1,5 +1,5 @@
 /**
- * Form collection/validation, loans list table, loan detail/add-loan modals, JSON download.
+ * Form collection/validation, loans list (ruled-row grid), loan detail/add-loan modals, JSON download.
  * Defines globals: UIManager
  * Depends on: DOM loan form fields, #loansList, #addLoanModal, #loanDetailModal,
  *   #loanDetailBody, savings form fields for loadDataToForm; formatCurrency is a method here
@@ -134,7 +134,8 @@ class UIManager {
         return startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
     }
 
-    // Loans table — one ruled row per loan; click opens detail modal
+    // Loans list — one .sheet-ruled-row per line (div grid, not <table>;
+    // table rows ignore max-height and drift off the paper rules)
     updateLoansList(loans) {
         const loansList = document.getElementById('loansList');
         if (!loansList) return;
@@ -149,31 +150,29 @@ class UIManager {
             const startDisplay = this.formatLoanStartDisplay(loan);
 
             return `
-                <tr class="sheet-ruled-row loan-table-row" tabindex="0" role="button"
+                <div class="sheet-ruled-row loan-table-row" role="row" tabindex="0"
                     onclick="showLoanDetail(${loan.id})"
                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanDetail(${loan.id});}">
-                    <td>$${loan.amount.toLocaleString()}</td>
-                    <td>${loan.rate}%</td>
-                    <td>${loan.term}yr</td>
-                    <td>${payment}</td>
-                    <td>${startDisplay}</td>
-                </tr>
+                    <span role="cell">$${loan.amount.toLocaleString()}</span>
+                    <span role="cell">${loan.rate}%</span>
+                    <span role="cell">${loan.term}yr</span>
+                    <span role="cell">${payment}</span>
+                    <span role="cell">${startDisplay}</span>
+                </div>
             `;
         }).join('');
 
         loansList.innerHTML = `
-            <table class="loans-table">
-                <thead>
-                    <tr class="sheet-ruled-row">
-                        <th>Amount</th>
-                        <th>Rate</th>
-                        <th>Term</th>
-                        <th>Pay</th>
-                        <th>Start</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
+            <div class="loans-table" role="table" aria-label="Active loans">
+                <div class="sheet-ruled-row loans-table-header" role="row">
+                    <span role="columnheader">Amount</span>
+                    <span role="columnheader">Rate</span>
+                    <span role="columnheader">Term</span>
+                    <span role="columnheader">Pay</span>
+                    <span role="columnheader">Start</span>
+                </div>
+                ${rows}
+            </div>
         `;
     }
 

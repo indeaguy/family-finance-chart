@@ -1,6 +1,7 @@
 /*
  * File folder: tabbed manila/green folders, loose-leaf ruled sheets, pocket
- * clip, sheet-raise stacking, decagonal Add Loan pencil, loans table rows.
+ * clip, sheet-raise stacking, decagonal Add Loan pencil, loans ruled-row grid.
+ * Invariant: each .sheet-ruled-row height/offset must equal --leaf-line (no <table>).
  * Load order: after drawer.css (relies on winning over generic button/input
  * rules via specificity and !important), before overlays.css.
  */
@@ -348,7 +349,8 @@
     flex-shrink: 0;
 }
 
-/* One notebook line per row — height must equal --leaf-line exactly */
+/* One notebook line per row — border-box height must equal --leaf-line exactly
+ * or text drifts off the repeating background rules (see tests/loose-leaf-alignment). */
 .sheet-ruled-row {
     height: var(--leaf-line);
     min-height: var(--leaf-line);
@@ -358,6 +360,7 @@
     box-sizing: border-box;
     display: flex;
     align-items: flex-end;
+    flex: 0 0 var(--leaf-line);
     gap: 8px;
     color: #2f4f4f;
     font-family: 'Kalam', cursive;
@@ -455,56 +458,42 @@
     font-style: italic;
 }
 
+/* Div grid (not <table>) so each row keeps exact --leaf-line height */
 .loans-table {
     width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
+    display: flex;
+    flex-direction: column;
 }
 
-.loans-table thead th {
-    font-weight: 700;
-    text-align: left;
-    color: #2f4f4f;
-    font-family: 'Kalam', cursive;
-    font-size: 12px;
+.loans-table > .sheet-ruled-row {
+    display: grid;
+    grid-template-columns: 1.35fr 0.7fr 0.7fr 1fr 1.15fr;
+    align-items: end;
+    column-gap: 4px;
+    gap: 0 4px;
 }
 
-.loans-table th,
-.loans-table td {
-    padding: 0 4px 3px 0;
-    height: var(--leaf-line);
-    border: none;
-    vertical-align: bottom;
+.loans-table > .sheet-ruled-row > * {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: 'Kalam', cursive;
     font-size: 12px;
-    color: #2f4f4f;
-    font-weight: 400;
-    line-height: 1;
 }
 
-.loans-table tr.sheet-ruled-row {
-    display: table-row;
-    height: var(--leaf-line);
-    min-height: var(--leaf-line);
-    max-height: var(--leaf-line);
-    padding: 0;
-    align-items: unset;
-    gap: 0;
-    overflow: visible;
+.loans-table > .loans-table-header {
+    font-weight: 700;
 }
 
-.loans-table tr.sheet-ruled-row > :first-child {
-    padding-left: calc(var(--leaf-margin-x) + 10px);
+.loans-table > .loans-table-header > * {
+    font-weight: 700;
 }
 
 .loans-table .loan-table-row {
     cursor: pointer;
 }
 
-.loans-table .loan-table-row:hover td {
+.loans-table .loan-table-row:hover {
     background: rgba(47, 79, 79, 0.06);
 }
 

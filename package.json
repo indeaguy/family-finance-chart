@@ -1,0 +1,11 @@
+{
+  "name": "family-finance-chart",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/loose-leaf-alignment.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.54.2"
+  }
+}
