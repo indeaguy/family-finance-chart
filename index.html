@@ -21,11 +21,9 @@
 </head>
 <body>
     <div class="main-container">
-        <!-- Drawer Handle (back outside for visibility) -->
-        <div class="drawer-handle" onclick="toggleDrawer()"></div>
-        
-        <!-- Real Drawer Container -->
+        <!-- Real Drawer Container (handle is a child so it rides the same transform) -->
         <div class="drawer-container" id="drawer">
+            <div class="drawer-handle" onclick="toggleDrawer()"></div>
             <!-- Reference element for handle positioning -->
             <div class="drawer-top-reference" id="drawerTopRef"></div>
             
