@@ -63,7 +63,7 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 
 - **`js/format.js`** — `formatCurrency`, `formatTimeDisplay`, `updateChart` shim → `window.app`.
 - **`js/folder-sheet.js`** — Folder tabs, sheet raise, pocket height, pencil entrance/roll.
-- **`js/drawer.js`** — `toggleDrawer` / `openDrawer` / `closeDrawer`; resize; click-outside closes drawer + modals.
+- **`js/drawer.js`** — `toggleDrawer` / `openDrawer` / `closeDrawer`; resize pocket update; click-outside closes drawer + modals. Handle is a nested child (no separate position sync).
 - **`js/summary-overlay.js`** — Summary overlay + chart-header modal + `showChartHover`.
 
 ### Core app modules
@@ -112,10 +112,9 @@ Ruled paper uses a repeating background stepped by `--leaf-line` (28px). Every `
 
 The handle must look physically attached to the drawer for the whole open/close animation.
 
-- Never animate the handle *after* the drawer finishes (`setTimeout` / `transitionend` repositioning).
-- Never measure DOM mid-animation for handle position.
-- Always compute the handle’s final position **before** changing the drawer class, then set handle style and drawer class in the **same synchronous block**.
-- Handle and drawer must use identical CSS transition timing/easing.
+- Keep `.drawer-handle` as a **child** of `#drawer`, positioned at `bottom: 100%` (with a small lip tuck). It rides the drawer’s `transform` — do not animate handle `bottom`/`top` separately.
+- Never measure or reposition the handle on open/close/resize/`transitionend`.
+- `.drawer-container` must stay `overflow: visible` so the nested handle can stick above the lip; clip scrolling on `.drawer-interior` instead.
 
 Implementation lives in `js/drawer.js` with styles in `css/drawer.css`.
 
