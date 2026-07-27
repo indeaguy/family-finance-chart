@@ -63,19 +63,19 @@
                         <button onclick="showNetWorthOverrides()">📈 Net Worth Overrides</button>
                     </div>
 
-                    <div class="file-folder folder-loans" id="loansSavingsFolder" data-active-sheet="loans">
+                    <div class="file-folder folder-savings" id="loansSavingsFolder" data-active-sheet="savings">
                         <div class="folder-tabs" role="tablist" aria-label="Loans and Savings folders">
-                            <button type="button" class="folder-tab folder-tab-loans active" role="tab" aria-selected="true" aria-controls="folderSheetLoans" id="folderTabLoans" data-sheet="loans" onclick="switchFolderSheet('loans')">Loans</button>
-                            <button type="button" class="folder-tab folder-tab-savings" role="tab" aria-selected="false" aria-controls="folderSheetSavings" id="folderTabSavings" data-sheet="savings" onclick="switchFolderSheet('savings')">Savings</button>
+                            <button type="button" class="folder-tab folder-tab-savings active" role="tab" aria-selected="true" aria-controls="folderSheetSavings" id="folderTabSavings" data-sheet="savings" onclick="switchFolderSheet('savings')">Savings</button>
+                            <button type="button" class="folder-tab folder-tab-loans" role="tab" aria-selected="false" aria-controls="folderSheetLoans" id="folderTabLoans" data-sheet="loans" onclick="switchFolderSheet('loans')">Loans</button>
                         </div>
                         <div class="folder-body">
                             <div class="folder-pocket">
-                                <div class="folder-sheet loose-leaf active" id="folderSheetLoans" role="tabpanel" aria-labelledby="folderTabLoans" data-sheet="loans">
+                                <div class="folder-sheet loose-leaf" id="folderSheetLoans" role="tabpanel" aria-labelledby="folderTabLoans" data-sheet="loans" hidden>
                                     <div class="sheet-ruled-row sheet-heading">Active Loans</div>
                                     <div class="loans-list" id="loansList">
                                     </div>
                                 </div>
-                                <div class="folder-sheet loose-leaf" id="folderSheetSavings" role="tabpanel" aria-labelledby="folderTabSavings" data-sheet="savings" hidden>
+                                <div class="folder-sheet loose-leaf active" id="folderSheetSavings" role="tabpanel" aria-labelledby="folderTabSavings" data-sheet="savings">
                                     <!-- Savings sheet left empty for now -->
                                 </div>
                             </div>
@@ -97,9 +97,6 @@
                     
                     <div class="control-group">
                         <h3>⚡ Quick Actions</h3>
-                        <button onclick="updateChart()">📊 Refresh Chart</button>
-                        <button onclick="showChartHeaderModal()">✏️ Edit Chart Header</button>
-                        <button onclick="clearAllLoans()">🗑️ Clear All Loans</button>
                         <button onclick="exportToJSON()">📤 Export to JSON</button>
                         <button onclick="document.getElementById('jsonFileInput').click()">📥 Import JSON</button>
                         <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="importFromJSON(event)">

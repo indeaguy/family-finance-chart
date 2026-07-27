@@ -86,19 +86,28 @@
     transform: none !important;
     cursor: pointer;
     line-height: 1;
+    --tab-fill: #d4b896;
+    --tab-edge: #b8956a;
+    --tab-text: #5c4030;
 }
 
 /* Each tab is colored as its own folder */
 .folder-tab-loans {
-    background: #d4b896 !important;
-    border-color: #b8956a !important;
-    color: #5c4030 !important;
+    --tab-fill: #d4b896;
+    --tab-edge: #b8956a;
+    --tab-text: #5c4030;
+    background: var(--tab-fill) !important;
+    border-color: var(--tab-edge) !important;
+    color: var(--tab-text) !important;
 }
 
 .folder-tab-savings {
-    background: #6fa35c !important;
-    border-color: #4f7d42 !important;
-    color: #1f3d18 !important;
+    --tab-fill: #6fa35c;
+    --tab-edge: #4f7d42;
+    --tab-text: #1f3d18;
+    background: var(--tab-fill) !important;
+    border-color: var(--tab-edge) !important;
+    color: var(--tab-text) !important;
 }
 
 .folder-tab:not(.active) {
@@ -107,15 +116,27 @@
     z-index: 1;
 }
 
-/* Active tab blends into folder face — no seam line */
+/* Active tab blends into the folder face so the tab, cover strip, and body read as one piece */
 .folder-tab.active {
     height: 30px;
     z-index: 3;
     background: var(--folder-face) !important;
     border-color: var(--folder-face-edge) !important;
-    border-bottom: 1px solid var(--folder-face) !important;
+    border-bottom-color: transparent !important;
     color: var(--folder-ink) !important;
     margin-bottom: -1px;
+}
+
+.folder-tab.active::after {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    height: 3px;
+    background: var(--folder-face);
+    pointer-events: none;
+    z-index: 2;
 }
 
 .folder-tab:hover {
