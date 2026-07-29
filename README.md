@@ -47,7 +47,8 @@ A simple web application to visualize financial growth over time, including comp
 - All settings and loans will be restored
 
 #### Try the Example
-- Load `example.json` to see a sample financial scenario with:
+- With no import yet, the app loads demo loans from `js/default_config/example-default-loans.js`
+- Import `example.json` for a full sample scenario with:
   - $25,000 initial savings
   - $1,200 monthly savings
   - 8.5% annual interest rate

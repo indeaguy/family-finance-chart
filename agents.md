@@ -9,6 +9,7 @@ Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional
 | Chart series, markers, hover, resize | `js/chart-manager.js` |
 | Compound interest / loan amortization math | `js/calculator.js` |
 | Field schema helpers (form/table/export) | `js/field-model.js` |
+| Default demo loans (no user import) | `js/default_config/` |
 | Loans/overrides store, JSON import/export, `LOAN_FIELDS` | `js/data-manager.js` |
 | Forms, loans list, loan modals, download | `js/ui-manager.js` |
 | Field-model / loan schema / remaining-balance unit tests | `tests/field-model.mjs` (`npm run test:unit`) |
@@ -42,10 +43,11 @@ Each `js/*.js` file starts with a purpose / Defines / Depends header. Trust thos
 5. `calculator.js`
 6. `chart-manager.js`
 7. `field-model.js`
-8. `data-manager.js`
-9. `ui-manager.js`
-10. `override-manager.js`
-11. `app.js`
+8. `default_config/example-default-loans.js` (sets `DEFAULT_EXAMPLE_DATA`)
+9. `data-manager.js`
+10. `ui-manager.js`
+11. `override-manager.js`
+12. `app.js`
 
 Cross-file calls happen at event time, not load time, except that `app.js` must load last so classes exist when `FinanceApp` constructs.
 
@@ -71,7 +73,8 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 - **`js/calculator.js`** — `FinanceCalculator`: growth, amortization, overrides → chart data; `remainingBalanceAsOf` for single-loan balance through a date.
 - **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers.
 - **`js/field-model.js`** — Reusable field-schema helpers: filter/format/serialize/hydrate and render form/table/detail from a `*_FIELDS` array. Entity-agnostic; schemas live with their owner store.
-- **`js/data-manager.js`** — `DataManager`: loans, overrides, import/export; owns `LOAN_FIELDS` (drives add-loan form, loans table, detail rows, loan JSON shape).
+- **`js/default_config/example-default-loans.js`** — `DEFAULT_EXAMPLE_DATA` demo loans applied on load when the user has not imported JSON (script tag; works with `file://`).
+- **`js/data-manager.js`** — `DataManager`: loans, overrides, import/export; owns `LOAN_FIELDS` (drives add-loan form, loans table, detail rows, loan JSON shape); applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`.
 - **`js/ui-manager.js`** — `UIManager`: forms, loans list, loan modals, JSON download (loan UI generated from `LOAN_FIELDS`).
 - **`js/override-manager.js`** — `OverrideManager`: dual savings + loan-balance overrides.
 - **`js/app.js`** — `FinanceApp` + onclick globals; dependency injection hub.
@@ -150,4 +153,5 @@ Do not land field-schema or amortization changes that fail the unit suite; do no
 - Prefer extending an existing file over inventing a new module unless the concern is clearly new.
 - Keep backward compatibility for old JSON override shapes (`data-manager.js` / `calculator.js`).
 - Example scenarios: `example.json` and `example-*.json` in the repo root.
+- Default loans (no user import yet): `js/default_config/example-default-loans.js` → `DEFAULT_EXAMPLE_DATA`, applied by `DataManager.loadDefaultExampleIfNeeded()` after calculator injection. Import sets `hasUserImport` so user JSON wins.
 - After substantive edits, run the matching tests above (`npm test` when unsure).

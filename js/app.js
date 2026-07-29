@@ -59,10 +59,9 @@ class FinanceApp {
         // Set default values
         this.setDefaultValues();
 
-        // Render loans list (includes temporary dummy loans for folder scroll testing)
+        // Demo loans from js/default_config/ unless the user already imported JSON
+        this.dataManager.loadDefaultExampleIfNeeded();
         this.uiManager.updateLoansList(this.dataManager.getLoans());
-        
-        // Initial chart update
         this.updateChart();
     }
     
