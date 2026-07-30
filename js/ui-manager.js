@@ -34,12 +34,14 @@ class UIManager {
         this.ensureLoanFormFields();
 
         const amountField = LOAN_FIELDS.find(f => f.key === 'amount');
+        const nameField = LOAN_FIELDS.find(f => f.key === 'name');
         const rateField = LOAN_FIELDS.find(f => f.key === 'rate');
         const termField = LOAN_FIELDS.find(f => f.key === 'term');
         const startField = LOAN_FIELDS.find(f => f.key === 'startDate');
         const paymentField = LOAN_FIELDS.find(f => f.key === 'monthlyPayment');
 
         const amount = readFormValue(amountField, document.getElementById(amountField.domId)) || 0;
+        const name = readFormValue(nameField, document.getElementById(nameField.domId));
         const rate = readFormValue(rateField, document.getElementById(rateField.domId)) || 0;
         const term = readFormValue(termField, document.getElementById(termField.domId)) || 1;
         const startDate = readFormValue(startField, document.getElementById(startField.domId));
@@ -69,6 +71,7 @@ class UIManager {
         }
         
         return {
+            name: name && String(name).trim(),
             amount,
             rate,
             term,
@@ -178,7 +181,7 @@ class UIManager {
             : '—';
 
         body.innerHTML = `
-            <div class="sheet-ruled-row sheet-heading" id="loanDetailHeading">Loan details</div>
+            <div class="sheet-ruled-row sheet-heading" id="loanDetailHeading">${(loan.name && String(loan.name).trim()) || 'Loan details'}</div>
             ${renderDetailRows(LOAN_FIELDS, loan, ctx)}
             <div class="sheet-ruled-row"><span class="detail-label">Extra / mo</span><span class="detail-value">${extra}</span></div>
             <div class="sheet-ruled-row loan-detail-actions">

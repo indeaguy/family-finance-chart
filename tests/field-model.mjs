@@ -68,14 +68,14 @@ assertEqual(formatFieldValue({ type: 'currency' }, null), '—', 'formatFieldVal
 
 assertEqual(
     filterFields(LOAN_FIELDS, 'table').map((f) => f.key),
-    ['amount', 'rate', 'term', 'monthlyPayment', 'startDate', 'remainingBalance'],
-    'table column order (Pay before Start, Balance last)'
+    ['name', 'amount', 'rate', 'term', 'monthlyPayment', 'startDate', 'remainingBalance'],
+    'table column order (Name first, Pay before Start, Balance last)'
 );
 
 assertEqual(
     filterFields(LOAN_FIELDS, 'form').map((f) => f.key),
-    ['amount', 'rate', 'term', 'startDate', 'monthlyPayment'],
-    'form field order (Start before Payment)'
+    ['name', 'amount', 'rate', 'term', 'startDate', 'monthlyPayment'],
+    'form field order (Name first, Start before Payment)'
 );
 
 const balanceField = LOAN_FIELDS.find((f) => f.key === 'remainingBalance');
@@ -99,6 +99,7 @@ assert(
 
 const sampleLoan = {
     id: 42,
+    name: 'Mortgage',
     amount: 350000,
     rate: 4.8,
     term: 30,
@@ -117,7 +118,7 @@ assert(!Object.prototype.hasOwnProperty.call(exported, 'remainingBalance'),
 assert(!Object.prototype.hasOwnProperty.call(exported, 'id'), 'export omits id');
 assertEqual(
     Object.keys(exported).sort(),
-    ['amount', 'isCustomPayment', 'monthlyPayment', 'rate', 'startDate', 'startMonth', 'term'].sort(),
+    ['amount', 'isCustomPayment', 'monthlyPayment', 'name', 'rate', 'startDate', 'startMonth', 'term'].sort(),
     'export key set'
 );
 
@@ -207,13 +208,14 @@ assert(afterOneMonth < sampleLoan.amount, 'sample loan balance drops after first
 
 const container = { innerHTML: '' };
 renderFormFields(container, LOAN_FIELDS);
+assert(container.innerHTML.includes('id="loanName"'), 'form renders loanName');
 assert(container.innerHTML.includes('id="loanAmount"'), 'form renders loanAmount');
 assert(container.innerHTML.includes('id="loanStartDate"'), 'form renders loanStartDate');
 assert(container.innerHTML.includes('id="loanMonthlyPayment"'), 'form renders loanMonthlyPayment');
 assert(!container.innerHTML.includes('remainingBalance'), 'form does not render remainingBalance');
 assert(
-    (container.innerHTML.match(/sheet-ruled-row input-row/g) || []).length === 5,
-    'form renders five input rows'
+    (container.innerHTML.match(/sheet-ruled-row input-row/g) || []).length === 6,
+    'form renders six input rows'
 );
 
 // --- summary ---

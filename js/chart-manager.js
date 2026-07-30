@@ -1,9 +1,26 @@
 /**
  * LightweightCharts setup: series (savings, net worth, loans, goal), markers, hover, resize.
- * Defines globals: ChartManager
+ * Defines globals: ChartManager, INDIVIDUAL_LOAN_LINES
  * Depends on: window.LightweightCharts; summary-overlay.js (window.showChartHover on crosshair);
  *   DOM: #chart container (passed into createChart)
  */
+
+/** Per-loan balance line styling — edit here (not exposed in UI). */
+const INDIVIDUAL_LOAN_LINES = {
+    enabled: true,
+    lineWidth: 1,
+    lineStyle: LightweightCharts.LineStyle.Dotted,
+    showLegendTitle: true,
+    priceLineVisible: false,
+    lastValueVisible: false
+};
+
+/** Hide static right-axis labels; hover labels are driven from crosshair move. */
+const SERIES_AXIS_LABEL_OPTS = {
+    lastValueVisible: false,
+    priceLineVisible: false,
+    title: ''
+};
 
 class ChartManager {
     constructor() {
@@ -12,8 +29,22 @@ class ChartManager {
             netWorth: null,
             netWorthOriginal: null,
             loanBalance: null,
+            individualLoans: [],
             goalLine: null
         };
+
+        this.individualLoanColors = [
+            '#ef9a9a', '#e57373', '#ef5350', '#ff7043', '#ff8a65',
+            '#ffab91', '#f48fb1', '#ec407a', '#ce93d8', '#ab47bc',
+            '#b39ddb', '#9575cd', '#7986cb', '#64b5f6', '#4dd0e1',
+            '#80cbc4', '#a5d6a7', '#c5e1a5', '#fff59d', '#ffcc80'
+        ];
+
+        /** @type {Map<object, object>} series API -> hover price line */
+        this.hoverPriceLines = new Map();
+
+        /** @type {Map<object, string>} series API -> label shown on hover only */
+        this.seriesDisplayNames = new Map();
     }
     
     createChart(container) {
@@ -70,6 +101,9 @@ class ChartManager {
             },
             crosshair: {
                 mode: LightweightCharts.CrosshairMode.Normal,
+                horzLine: {
+                    labelVisible: false,
+                },
             },
         });
         
@@ -89,19 +123,84 @@ class ChartManager {
     
     setupChartHover(chart) {
         chart.subscribeCrosshairMove(param => {
+            this.updateHoverPriceLabels(param);
+
             if (!param.time || !window.app || !window.app.uiManager) {
                 return;
             }
-            
-            // Find the data point for this time
+
             const chartData = window.app.uiManager.currentChartData;
             if (!chartData || chartData.length === 0) return;
-            
+
             const dataPoint = chartData.find(d => d.timestamp === param.time);
             if (dataPoint && window.showChartHover) {
                 window.showChartHover(param, dataPoint);
             }
         });
+    }
+
+    getTrackedSeries() {
+        const series = [];
+        if (this.chartSeries.savings) series.push(this.chartSeries.savings);
+        if (this.chartSeries.netWorth) series.push(this.chartSeries.netWorth);
+        if (this.chartSeries.netWorthOriginal) series.push(this.chartSeries.netWorthOriginal);
+        if (this.chartSeries.loanBalance) series.push(this.chartSeries.loanBalance);
+        if (this.chartSeries.goalLine) series.push(this.chartSeries.goalLine);
+        series.push(...this.chartSeries.individualLoans);
+        return series;
+    }
+
+    registerSeriesDisplayName(series, displayName) {
+        if (series && displayName) {
+            this.seriesDisplayNames.set(series, displayName);
+        }
+    }
+
+    clearHoverPriceLines() {
+        this.hoverPriceLines.forEach((priceLine, series) => {
+            try {
+                series.removePriceLine(priceLine);
+            } catch (error) {
+                // Series may already have been removed during chart refresh.
+            }
+        });
+        this.hoverPriceLines.clear();
+    }
+
+    updateHoverPriceLabels(param) {
+        if (!param.time || !param.seriesData) {
+            this.clearHoverPriceLines();
+            return;
+        }
+
+        for (const series of this.getTrackedSeries()) {
+            const data = param.seriesData.get(series);
+            if (!data || data.value == null) {
+                const existing = this.hoverPriceLines.get(series);
+                if (existing) {
+                    series.removePriceLine(existing);
+                    this.hoverPriceLines.delete(series);
+                }
+                continue;
+            }
+
+            const color = series.options().color;
+            const title = this.seriesDisplayNames.get(series) || '';
+            const lineOpts = {
+                price: data.value,
+                color,
+                lineVisible: false,
+                axisLabelVisible: true,
+                title,
+            };
+
+            const existing = this.hoverPriceLines.get(series);
+            if (existing) {
+                existing.applyOptions(lineOpts);
+            } else {
+                this.hoverPriceLines.set(series, series.createPriceLine(lineOpts));
+            }
+        }
     }
     
     updateChart(chart, results) {
@@ -117,6 +216,7 @@ class ChartManager {
             // Add new series
             this.addSavingsLine(chart, results);
             this.addNetWorthLine(chart, results);
+            this.addIndividualLoanLines(chart, results);
             this.addLoanBalanceLine(chart, results);
             this.addGoalLine(chart, results);
             this.addLoanPayoffMarkers(chart, results);
@@ -130,11 +230,46 @@ class ChartManager {
     }
     
     clearSeries(chart) {
+        this.clearHoverPriceLines();
+        this.seriesDisplayNames.clear();
+
         Object.keys(this.chartSeries).forEach(key => {
-            if (this.chartSeries[key]) {
-                chart.removeSeries(this.chartSeries[key]);
+            const entry = this.chartSeries[key];
+            if (Array.isArray(entry)) {
+                entry.forEach(series => {
+                    if (series) chart.removeSeries(series);
+                });
+                this.chartSeries[key] = [];
+            } else if (entry) {
+                chart.removeSeries(entry);
                 this.chartSeries[key] = null;
             }
+        });
+    }
+
+    addIndividualLoanLines(chart, results) {
+        const cfg = INDIVIDUAL_LOAN_LINES;
+        if (!cfg.enabled || !results.individualLoanSeries || results.individualLoanSeries.length === 0) {
+            return;
+        }
+
+        results.individualLoanSeries.forEach((series, index) => {
+            if (!series.data || series.data.length === 0) return;
+
+            const color = this.individualLoanColors[index % this.individualLoanColors.length];
+            const lineSeries = chart.addLineSeries({
+                color,
+                lineWidth: cfg.lineWidth,
+                lineStyle: cfg.lineStyle,
+                title: '',
+                priceLineVisible: cfg.priceLineVisible,
+                lastValueVisible: cfg.lastValueVisible
+            });
+            if (cfg.showLegendTitle) {
+                this.registerSeriesDisplayName(lineSeries, series.name);
+            }
+            lineSeries.setData(series.data);
+            this.chartSeries.individualLoans.push(lineSeries);
         });
     }
     
@@ -142,8 +277,9 @@ class ChartManager {
         this.chartSeries.savings = chart.addLineSeries({
             color: '#26a69a',
             lineWidth: 3,
-            title: 'Total Savings'
+            ...SERIES_AXIS_LABEL_OPTS
         });
+        this.registerSeriesDisplayName(this.chartSeries.savings, 'Total Savings');
         this.chartSeries.savings.setData(results.savingsData);
     }
     
@@ -151,8 +287,12 @@ class ChartManager {
         this.chartSeries.netWorth = chart.addLineSeries({
             color: '#2196f3',
             lineWidth: 3,
-            title: 'Net Worth' + (results.hasOverrides ? ' (With Overrides)' : '')
+            ...SERIES_AXIS_LABEL_OPTS
         });
+        this.registerSeriesDisplayName(
+            this.chartSeries.netWorth,
+            'Net Worth' + (results.hasOverrides ? ' (With Overrides)' : '')
+        );
         this.chartSeries.netWorth.setData(results.netWorthData);
         
         // Add comparison line if there are overrides
@@ -161,8 +301,9 @@ class ChartManager {
                 color: '#2196f3',
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
-                title: 'Original Net Worth (No Overrides)'
+                ...SERIES_AXIS_LABEL_OPTS
             });
+            this.registerSeriesDisplayName(this.chartSeries.netWorthOriginal, 'Original Net Worth (No Overrides)');
             this.chartSeries.netWorthOriginal.setData(results.netWorthOriginalData);
         }
     }
@@ -172,8 +313,9 @@ class ChartManager {
             this.chartSeries.loanBalance = chart.addLineSeries({
                 color: '#f44336',
                 lineWidth: 2,
-                title: 'Total Loan Balance'
+                ...SERIES_AXIS_LABEL_OPTS
             });
+            this.registerSeriesDisplayName(this.chartSeries.loanBalance, 'Total Loan Balance');
             this.chartSeries.loanBalance.setData(results.loanBalanceData);
         }
     }
@@ -184,8 +326,12 @@ class ChartManager {
                 color: '#ff9800',
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
-                title: `Goal: $${results.goalAmount.toLocaleString()}`
+                ...SERIES_AXIS_LABEL_OPTS
             });
+            this.registerSeriesDisplayName(
+                this.chartSeries.goalLine,
+                `Goal: $${results.goalAmount.toLocaleString()}`
+            );
             
             // Create horizontal line data for the goal
             const goalLineData = results.savingsData.map(point => ({
@@ -212,31 +358,7 @@ class ChartManager {
     
     addLoanPayoffMarkers(chart, results) {
         if (results.loanPayoffMarkers && results.loanPayoffMarkers.length > 0 && this.chartSeries.loanBalance) {
-            // Add markers to the loan balance line
             this.chartSeries.loanBalance.setMarkers(results.loanPayoffMarkers);
-            
-            // Add vertical lines for each payoff date
-            results.loanPayoffMarkers.forEach(marker => {
-                const payoffLine = chart.addLineSeries({
-                    color: '#f44336',
-                    lineWidth: 1,
-                    lineStyle: LightweightCharts.LineStyle.Dashed,
-                    title: 'Loan Payoff'
-                });
-                
-                // Create vertical line data
-                const maxValue = Math.max(
-                    ...results.savingsData.map(point => point.value),
-                    results.goalAmount || 0
-                ) * 1.1;
-                
-                const verticalLineData = [
-                    { time: marker.time, value: 0 },
-                    { time: marker.time, value: maxValue }
-                ];
-                
-                payoffLine.setData(verticalLineData);
-            });
         }
     }
     

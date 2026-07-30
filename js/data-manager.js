@@ -15,6 +15,32 @@
 /** @type {Array<object>} */
 const LOAN_FIELDS = [
     {
+        key: 'name',
+        label: 'Name',
+        type: 'text',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 0,
+        tableOrder: 0,
+        detailOrder: 0,
+        domId: 'loanName',
+        formLabel: 'Name',
+        default: '',
+        inputAttrs: { placeholder: 'e.g. Mortgage', maxlength: '40' },
+        display: (loan) => {
+            const n = loan.name && String(loan.name).trim();
+            if (n) return n;
+            const amt = Number(loan.amount);
+            if (Number.isFinite(amt) && amt > 0) {
+                return '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            }
+            return '—';
+        }
+    },
+    {
         key: 'amount',
         label: 'Amount',
         type: 'currency',
@@ -235,8 +261,11 @@ class DataManager {
             if (!proceed) return null;
         }
         
+        const name = loanData.name && String(loanData.name).trim();
+
         return {
             id: Date.now(),
+            name: name || '',
             amount: loanData.amount,
             rate: loanData.rate,
             term: loanData.term,
@@ -376,8 +405,11 @@ class DataManager {
                         startDate = calculatedDate.toISOString().slice(0, 7);
                     }
                     
+                    const name = hydrated.name && String(hydrated.name).trim();
+
                     return {
                         id: Date.now() + index,
+                        name: name || '',
                         amount: hydrated.amount,
                         rate: hydrated.rate,
                         term: hydrated.term,

@@ -66,6 +66,12 @@ class FinanceCalculator {
             isPaidOff: false,
             payoffMonth: null
         }));
+
+        const individualLoanSeries = loans.map((loan, index) => ({
+            id: loan.id,
+            name: (loan.name && String(loan.name).trim()) || `Loan ${index + 1}`,
+            data: []
+        }));
         
         // Monthly calculations
         for (let month = 1; month <= totalMonths; month++) {
@@ -98,6 +104,15 @@ class FinanceCalculator {
             netWorthData.push({ time: dataPoint.timestamp, value: netWorth });
             netWorthOriginalData.push({ time: dataPoint.timestamp, value: netWorth });
             
+            loanPayments.forEach((loan, index) => {
+                if (month < loan.startMonth) return;
+                if (loan.isPaidOff && loan.payoffMonth != null && month > loan.payoffMonth) return;
+                individualLoanSeries[index].data.push({
+                    time: dataPoint.timestamp,
+                    value: loan.remainingBalance
+                });
+            });
+            
             // Only add loan balance data if there's a balance
             if (totalLoanBalance > 0 || (month > 1 && data[month-2].loanBalance > 0)) {
                 loanBalanceData.push({ time: dataPoint.timestamp, value: totalLoanBalance });
@@ -116,6 +131,7 @@ class FinanceCalculator {
             netWorthData,
             netWorthOriginalData,
             loanBalanceData,
+            individualLoanSeries,
             loanPayoffMarkers,
             finalSavings: currentSavings,
             finalNetWorth: currentSavings - (loanPayments.reduce((sum, loan) => sum + loan.remainingBalance, 0)),
@@ -161,7 +177,7 @@ class FinanceCalculator {
                         position: 'aboveBar',
                         color: '#f44336',
                         shape: 'circle',
-                        text: 'Loan Paid Off!'
+                        text: `${(loan.name && String(loan.name).trim()) || 'Loan'} Paid Off!`
                     });
                 }
             }
