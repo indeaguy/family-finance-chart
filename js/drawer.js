@@ -7,7 +7,8 @@
  * never measure/reposition it on open, close, or transitionend.
  * Defines globals: toggleDrawer, openDrawer, closeDrawer
  * Depends on: folder-sheet.js (updateFolderPocketHeight, resetPencilBelowFold,
- *   playPencilEntranceRoll, resetFolderSheetRaise); summary-overlay.js
+ *   resetPencilEntranceSession, playPencilEntranceRoll, resetFolderSheetRaise);
+ *   summary-overlay.js
  *   (closeSummaryOverlay, closeChartHeaderModal); app.js globals
  *   (closeNetWorthOverrides, closeLoanDetail, closeAddLoanForm);
  *   DOM: #drawer, .drawer-handle, #netWorthOverridesModal, #chartHeaderModal,
@@ -54,7 +55,7 @@ function closeDrawer() {
     const drawer = document.getElementById('drawer');
 
     drawer.classList.remove('open');
-    resetPencilBelowFold();
+    resetPencilEntranceSession();
     resetFolderSheetRaise();
 }
 

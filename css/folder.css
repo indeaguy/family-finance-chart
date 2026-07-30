@@ -248,10 +248,6 @@
     opacity: 1;
 }
 
-.file-folder.folder-savings .folder-pocket-footer {
-    display: none;
-}
-
 /* Decagonal side-view pencil — facets roll only while the sheet scrolls */
 .add-loan-pencil {
     pointer-events: auto;

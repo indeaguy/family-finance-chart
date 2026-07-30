@@ -1,7 +1,8 @@
 /**
  * Main orchestrator: wires components, owns chart lifecycle, exposes HTML onclick globals.
  * Defines globals: FinanceApp, app / window.app, addLoan, removeLoan, showLoanDetail,
- *   closeLoanDetail, showAddLoanForm, closeAddLoanForm, clearAllLoans, exportToJSON,
+ *   closeLoanDetail, showAddLoanForm, closeAddLoanForm, showAddSavingsForm,
+ *   clearAllLoans, exportToJSON,
  *   importFromJSON, showNetWorthOverrides, closeNetWorthOverrides,
  *   addNetWorthOverrideFromForm, removeNetWorthOverride
  * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
@@ -153,6 +154,10 @@ class FinanceApp {
     closeAddLoanForm() {
         this.uiManager.closeAddLoanForm();
     }
+
+    showAddSavingsForm() {
+        // Savings add form — not implemented yet
+    }
     
     removeLoan(loanId) {
         this.dataManager.removeLoan(loanId);
@@ -263,6 +268,9 @@ function showAddLoanForm() {
 }
 function closeAddLoanForm() {
     if (app) app.closeAddLoanForm();
+}
+function showAddSavingsForm() {
+    if (app) app.showAddSavingsForm();
 }
 function clearAllLoans() { 
     if (app) app.clearAllLoans(); 

@@ -4,8 +4,10 @@
  * The pencil facet roll must stay 1:1 with paper travel (no-slip).
  * Defines globals: updateFolderPocketHeight, getMaxFolderSheetRaise,
  *   applyFolderSheetRaise, resetFolderSheetRaise, switchFolderSheet,
- *   playPencilEntranceRoll, resetPencilBelowFold, initFolderSheetRaise
- *   (plus module state: folderSheetRaiseOffset, pencilRollOffset)
+ *   playPencilEntranceRoll, resetPencilBelowFold, updatePencilForActiveSheet,
+ *   handlePencilClick, initFolderSheetRaise
+ *   (plus module state: folderSheetRaiseOffset, pencilRollOffset,
+ *   pencilEntrancePlayedThisOpen)
  * Depends on: DOM: #drawer, #loansSavingsFolder, .folder-sheet, .folder-tab,
  *   .folder-pocket, .folder-pocket-footer, .pencil-barrel-roll; CSS custom
  *   properties --pencil-facet-cycle, --pencil-facet, --leaf-line,
@@ -19,6 +21,7 @@ let folderSheetRaiseOffset = 0;
 let folderSheetTouchY = null;
 let pencilRollOffset = 0;
 let pencilEntranceRaf = null;
+let pencilEntrancePlayedThisOpen = false;
 
 function getActiveFolderSheet(folder) {
     return folder ? folder.querySelector('.folder-sheet.active') : null;
@@ -105,6 +108,41 @@ function resetPencilBelowFold() {
     }
 }
 
+function resetPencilEntranceSession() {
+    pencilEntrancePlayedThisOpen = false;
+    resetPencilBelowFold();
+}
+
+function setPencilRestPosition(folder, footer, drawer) {
+    footer.style.transition = 'none';
+    footer.style.bottom = '14px';
+    footer.classList.add('pencil-on-drawer-floor', 'pencil-above-fold');
+    if (drawer && !drawer.classList.contains('sheet-escaping')) {
+        drawer.classList.remove('pencil-entering');
+    }
+}
+
+function updatePencilForActiveSheet(sheetName) {
+    const btn = document.getElementById('addLoanPencilBtn');
+    const label = btn?.querySelector('.pencil-label');
+    if (!btn || !label) return;
+
+    const text = sheetName === 'loans' ? 'Add Loan' : 'Add Savings';
+    label.textContent = text;
+    btn.title = text;
+    btn.setAttribute('aria-label', text);
+}
+
+function handlePencilClick() {
+    const folder = document.getElementById('loansSavingsFolder');
+    const sheet = folder?.dataset.activeSheet || 'savings';
+    if (sheet === 'loans') {
+        showAddLoanForm();
+    } else {
+        showAddSavingsForm();
+    }
+}
+
 /**
  * After the drawer finishes opening: roll the pencil up from below the
  * bottom of the screen into its rest position on the loose-leaf.
@@ -114,7 +152,13 @@ function playPencilEntranceRoll() {
     const folder = document.getElementById('loansSavingsFolder');
     const footer = folder?.querySelector('.folder-pocket-footer');
     const drawer = document.getElementById('drawer');
-    if (!folder || !footer || !drawer || folder.classList.contains('folder-savings')) return;
+    if (!folder || !footer || !drawer) return;
+
+    if (pencilEntrancePlayedThisOpen) {
+        setPencilRestPosition(folder, footer, drawer);
+        updatePencilForActiveSheet(folder.dataset.activeSheet || 'savings');
+        return;
+    }
 
     resetPencilBelowFold();
     setPencilRollPosition(folder, 0);
@@ -147,6 +191,8 @@ function playPencilEntranceRoll() {
         } else {
             footer.style.bottom = `${endBottom}px`;
             pencilEntranceRaf = null;
+            pencilEntrancePlayedThisOpen = true;
+            updatePencilForActiveSheet(folder.dataset.activeSheet || 'savings');
             if (!drawer.classList.contains('sheet-escaping')) {
                 drawer.classList.remove('pencil-entering');
             }
@@ -227,14 +273,7 @@ function switchFolderSheet(sheetName) {
     folder.classList.toggle('folder-loans', sheetName === 'loans');
     folder.classList.toggle('folder-savings', sheetName === 'savings');
 
-    if (sheetName === 'loans' && document.getElementById('drawer')?.classList.contains('open')) {
-        const footer = folder.querySelector('.folder-pocket-footer');
-        if (footer && !footer.classList.contains('pencil-above-fold')) {
-            playPencilEntranceRoll();
-        } else if (footer) {
-            footer.classList.add('pencil-on-drawer-floor', 'pencil-above-fold');
-        }
-    }
+    updatePencilForActiveSheet(sheetName);
 }
 
 function initFolderSheetRaise() {
@@ -285,4 +324,10 @@ function initFolderSheetRaise() {
     }, { passive: true });
 }
 
-document.addEventListener('DOMContentLoaded', initFolderSheetRaise);
+document.addEventListener('DOMContentLoaded', () => {
+    initFolderSheetRaise();
+    const folder = document.getElementById('loansSavingsFolder');
+    if (folder) {
+        updatePencilForActiveSheet(folder.dataset.activeSheet || 'savings');
+    }
+});
