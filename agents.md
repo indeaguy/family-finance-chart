@@ -57,15 +57,15 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 
 - **`index.html`** — Structure only (~270 lines). Links CSS/JS; keeps the LightweightCharts load-failure check inline in `<head>`.
 - **`css/base.css`** — Body, `.main-container`, chart container/header/overlay, general mobile rules.
-- **`css/drawer.css`** — Drawer handle, container, wood interior, control groups, desk objects, close button.
-- **`css/folder.css`** — File folder, tabs, pocket, loose-leaf, pencil roll, loans table.
+- **`css/drawer.css`** — Drawer handle, container, wood interior, control groups, desk objects in `.drawer-desk-layer` (stubby pencil pose/roll driven by `drawer.js`), close button.
+- **`css/folder.css`** — File folder, tabs, pocket, loose-leaf, Add Loan pencil roll, shared `.pencil-*` part styles, loans table.
 - **`css/overlays.css`** — Summary overlay, modals, floating loose-leaf sheets, chart-header modal.
 
 ### UI globals (former `utilities.js`)
 
 - **`js/format.js`** — `formatCurrency`, `formatTimeDisplay`, `updateChart` shim → `window.app`.
 - **`js/folder-sheet.js`** — Folder tabs, sheet raise, pocket height, pencil entrance/roll.
-- **`js/drawer.js`** — `toggleDrawer` / `openDrawer` / `closeDrawer`; resize pocket update; click-outside closes drawer + modals. Handle is a nested child (no separate position sync).
+- **`js/drawer.js`** — `toggleDrawer` / `openDrawer` / `closeDrawer`; desk pencil rolls with live drawer open/close speed then momentum-coasts after each stop (`DESK_PENCIL` tunables); folder pencil entrance; resize pocket update; click-outside closes drawer + modals. Handle is a nested child (no separate position sync).
 - **`js/summary-overlay.js`** — Summary overlay + chart-header modal + `showChartHover`.
 
 ### Core app modules
@@ -83,7 +83,7 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 
 | Owner | Ids / regions |
 |-------|----------------|
-| Drawer | `#drawer`, `#drawerTopRef`, `.drawer-handle` |
+| Drawer | `#drawer`, `#drawerTopRef`, `.drawer-handle`, `.drawer-desk-layer` (pencil/pin/eraser) |
 | Folder | `#loansSavingsFolder`, `#folderSheetLoans`, `#folderSheetSavings`, `#loansList`, `#addLoanPencilBtn` |
 | Savings form | `#startDate`, `#initialAmount`, `#monthlySavings`, `#interestRate`, `#timePeriod`, `#goalAmount` |
 | Chart | `#chart`, `#chartOverlay`, `.chart-header` |

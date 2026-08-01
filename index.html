@@ -26,11 +26,23 @@
             <div class="drawer-handle" onclick="toggleDrawer()"></div>
             <!-- Reference element for handle positioning -->
             <div class="drawer-top-reference" id="drawerTopRef"></div>
-            
-            <div class="drawer-interior">
-                <div class="pencil"></div>
+
+            <!-- Clipped layer: desk objects may start below the floor without growing scrollbars -->
+            <div class="drawer-desk-layer" aria-hidden="true">
+                <div class="pencil">
+                    <span class="pencil-eraser"></span>
+                    <span class="pencil-ferrule"></span>
+                    <span class="pencil-barrel">
+                        <span class="pencil-barrel-roll"></span>
+                    </span>
+                    <span class="pencil-cone"></span>
+                    <span class="pencil-graphite"></span>
+                </div>
                 <div class="pin"></div>
                 <div class="eraser"></div>
+            </div>
+            
+            <div class="drawer-interior">
                 <div class="drawer-close" onclick="closeDrawer()">×</div>
                 
                 <div class="drawer-contents">
