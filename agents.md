@@ -71,7 +71,7 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 ### Core app modules
 
 - **`js/calculator.js`** — `FinanceCalculator`: growth, amortization, overrides → chart data; `remainingBalanceAsOf` for single-loan balance through a date.
-- **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total loan balance plus per-loan balance lines (`INDIVIDUAL_LOAN_LINES` config at top of file).
+- **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total loan balance plus per-loan balance lines (`INDIVIDUAL_LOAN_LINES` config at top of file); hover right-axis labels are stacked DOM rows (`title` + amount + interest; savings → earned, others → paid / per-loan paid).
 - **`js/field-model.js`** — Reusable field-schema helpers: filter/format/serialize/hydrate and render form/table/detail from a `*_FIELDS` array. Entity-agnostic; schemas live with their owner store.
 - **`js/default_config/example-default-loans.js`** — `DEFAULT_EXAMPLE_DATA` demo loans applied on load when the user has not imported JSON (script tag; works with `file://`).
 - **`js/data-manager.js`** — `DataManager`: loans, overrides, import/export; owns `LOAN_FIELDS` (drives add-loan form, loans table, detail rows, loan JSON shape); applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`.

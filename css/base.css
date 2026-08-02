@@ -128,6 +128,53 @@ body {
     width: 100%;
     height: 100%;
     position: relative; /* For positioned child elements */
+    overflow: visible; /* Interest badges sit just past the right price scale */
+}
+
+/* Hover right-axis rows: title + amount + interest (see chart-manager.js). */
+.chart-hover-axis-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+    overflow: visible;
+}
+
+.chart-hover-axis-pair {
+    position: absolute;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    font-size: 11px;
+    line-height: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    white-space: nowrap;
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.chart-hover-axis-title,
+.chart-hover-axis-amount,
+.chart-hover-axis-interest {
+    padding: 1px 5px;
+}
+
+.chart-hover-axis-title,
+.chart-hover-axis-amount {
+    color: #ffffff;
+    background: var(--axis-color, #888);
+}
+
+.chart-hover-axis-title {
+    font-weight: 600;
+    border-right: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.chart-hover-axis-interest {
+    color: #1a1a1a;
+    background: color-mix(in srgb, var(--axis-color, #888) 42%, white);
 }
 
 .chart-header {

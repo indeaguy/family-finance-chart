@@ -1,8 +1,10 @@
 /**
  * LightweightCharts setup: series (savings, net worth, loans, goal), markers, hover, resize.
  * Defines globals: ChartManager, INDIVIDUAL_LOAN_LINES
- * Depends on: window.LightweightCharts; summary-overlay.js (window.showChartHover on crosshair);
- *   DOM: #chart container (passed into createChart)
+ * Depends on: window.LightweightCharts; format.js (formatCurrency); summary-overlay.js
+ *   (window.showChartHover on crosshair); DOM: #chart container (passed into createChart).
+ * Hover right-axis labels are DOM (title + amount + interest) with collision stacking —
+ * LC native axis pills cannot do adjacent interest or shared stacking with custom badges.
  */
 
 /** Per-loan balance line styling — edit here (not exposed in UI). */
@@ -40,11 +42,23 @@ class ChartManager {
             '#80cbc4', '#a5d6a7', '#c5e1a5', '#fff59d', '#ffcc80'
         ];
 
-        /** @type {Map<object, object>} series API -> hover price line */
-        this.hoverPriceLines = new Map();
-
         /** @type {Map<object, string>} series API -> label shown on hover only */
         this.seriesDisplayNames = new Map();
+
+        /**
+         * Per-series interest at a timestamp for hover axis companions.
+         * @type {Map<object, Map<number, number>>}
+         */
+        this.seriesInterestByTime = new Map();
+
+        /** @type {HTMLElement|null} host for stacked right-axis hover labels */
+        this.axisLabelLayer = null;
+
+        /** @type {HTMLElement|null} chart container (#chart) */
+        this.chartContainer = null;
+
+        /** @type {object|null} LightweightCharts chart instance */
+        this.chart = null;
     }
     
     createChart(container) {
@@ -52,6 +66,8 @@ class ChartManager {
             console.error('LightweightCharts library not loaded');
             return null;
         }
+
+        this.chartContainer = container;
         
         // Calculate proper height
         const calculateHeight = () => {
@@ -106,6 +122,10 @@ class ChartManager {
                 },
             },
         });
+
+        this.chart = chart;
+        // After LC mounts — it owns #chart children; layer must be a sibling overlay host.
+        this.ensureAxisLabelLayer(container);
         
         // Handle window resize
         window.addEventListener('resize', () => {
@@ -120,22 +140,36 @@ class ChartManager {
         
         return chart;
     }
+
+    ensureAxisLabelLayer(container) {
+        if (this.axisLabelLayer && this.axisLabelLayer.isConnected) {
+            return;
+        }
+        const layer = document.createElement('div');
+        layer.className = 'chart-hover-axis-labels';
+        layer.setAttribute('aria-hidden', 'true');
+        container.appendChild(layer);
+        this.axisLabelLayer = layer;
+    }
     
     setupChartHover(chart) {
         chart.subscribeCrosshairMove(param => {
-            this.updateHoverPriceLabels(param);
-
             if (!param.time || !window.app || !window.app.uiManager) {
+                this.clearAxisLabels();
                 return;
             }
 
             const chartData = window.app.uiManager.currentChartData;
-            if (!chartData || chartData.length === 0) return;
+            if (!chartData || chartData.length === 0) {
+                this.clearAxisLabels();
+                return;
+            }
 
             const dataPoint = chartData.find(d => d.timestamp === param.time);
             if (dataPoint && window.showChartHover) {
                 window.showChartHover(param, dataPoint);
             }
+            this.updateHoverAxisLabels(param, dataPoint);
         });
     }
 
@@ -156,50 +190,131 @@ class ChartManager {
         }
     }
 
-    clearHoverPriceLines() {
-        this.hoverPriceLines.forEach((priceLine, series) => {
-            try {
-                series.removePriceLine(priceLine);
-            } catch (error) {
-                // Series may already have been removed during chart refresh.
-            }
-        });
-        this.hoverPriceLines.clear();
+    /** Store per-timestamp interest for a series (LC strips custom fields from setData). */
+    registerSeriesInterestByTime(series, points) {
+        if (!series || !points) return;
+        const byTime = new Map();
+        for (const point of points) {
+            if (point.time == null || point.interestPaid == null) continue;
+            if (!Number.isFinite(point.interestPaid)) continue;
+            byTime.set(point.time, point.interestPaid);
+        }
+        this.seriesInterestByTime.set(series, byTime);
     }
 
-    updateHoverPriceLabels(param) {
-        if (!param.time || !param.seriesData) {
-            this.clearHoverPriceLines();
+    clearAxisLabels() {
+        if (this.axisLabelLayer) {
+            this.axisLabelLayer.innerHTML = '';
+        }
+    }
+
+    /**
+     * Interest companion for a hover axis row.
+     * Savings → earned; loans / net worth / goal → paid (per-loan when available).
+     */
+    resolveInterestForSeries(series, dataPoint, time) {
+        if (!dataPoint) return null;
+
+        if (series === this.chartSeries.savings) {
+            return Number.isFinite(dataPoint.interestEarned)
+                ? { value: dataPoint.interestEarned, tip: 'Interest earned' }
+                : null;
+        }
+
+        const perLoan = this.seriesInterestByTime.get(series);
+        if (perLoan && perLoan.has(time)) {
+            return { value: perLoan.get(time), tip: 'Interest paid' };
+        }
+
+        if (
+            series === this.chartSeries.loanBalance ||
+            series === this.chartSeries.netWorth ||
+            series === this.chartSeries.netWorthOriginal ||
+            series === this.chartSeries.goalLine
+        ) {
+            return Number.isFinite(dataPoint.totalInterestPaid)
+                ? { value: dataPoint.totalInterestPaid, tip: 'Interest paid' }
+                : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Build stacked right-axis hover rows: [title][amount][interest].
+     * Nudges overlapping rows apart so labels don't collide (LC stacking stand-in).
+     */
+    updateHoverAxisLabels(param, dataPoint) {
+        if (!this.axisLabelLayer || !this.chart || !param.seriesData) {
+            this.clearAxisLabels();
             return;
         }
 
+        const left = this.chart.timeScale().width();
+        const labelHeight = 18;
+        const rows = [];
+
         for (const series of this.getTrackedSeries()) {
             const data = param.seriesData.get(series);
-            if (!data || data.value == null) {
-                const existing = this.hoverPriceLines.get(series);
-                if (existing) {
-                    series.removePriceLine(existing);
-                    this.hoverPriceLines.delete(series);
-                }
-                continue;
+            if (!data || data.value == null) continue;
+
+            const y = series.priceToCoordinate(data.value);
+            if (y == null || !Number.isFinite(y)) continue;
+
+            const interest = this.resolveInterestForSeries(series, dataPoint, param.time);
+            rows.push({
+                y,
+                color: series.options().color || '#888888',
+                title: this.seriesDisplayNames.get(series) || '',
+                amount: data.value,
+                interest
+            });
+        }
+
+        if (rows.length === 0) {
+            this.clearAxisLabels();
+            return;
+        }
+
+        // Stack top-to-bottom: keep order by price position, nudge when too close.
+        rows.sort((a, b) => a.y - b.y);
+        for (let i = 1; i < rows.length; i++) {
+            const minY = rows[i - 1].y + labelHeight;
+            if (rows[i].y < minY) {
+                rows[i].y = minY;
+            }
+        }
+
+        const layer = this.axisLabelLayer;
+        layer.innerHTML = '';
+        for (const row of rows) {
+            const el = document.createElement('div');
+            el.className = 'chart-hover-axis-pair';
+            el.style.top = `${row.y}px`;
+            el.style.left = `${left}px`;
+            el.style.setProperty('--axis-color', row.color);
+
+            if (row.title) {
+                const titleEl = document.createElement('span');
+                titleEl.className = 'chart-hover-axis-title';
+                titleEl.textContent = row.title;
+                el.appendChild(titleEl);
             }
 
-            const color = series.options().color;
-            const title = this.seriesDisplayNames.get(series) || '';
-            const lineOpts = {
-                price: data.value,
-                color,
-                lineVisible: false,
-                axisLabelVisible: true,
-                title,
-            };
+            const amountEl = document.createElement('span');
+            amountEl.className = 'chart-hover-axis-amount';
+            amountEl.textContent = formatCurrency(row.amount);
+            el.appendChild(amountEl);
 
-            const existing = this.hoverPriceLines.get(series);
-            if (existing) {
-                existing.applyOptions(lineOpts);
-            } else {
-                this.hoverPriceLines.set(series, series.createPriceLine(lineOpts));
+            if (row.interest) {
+                const interestEl = document.createElement('span');
+                interestEl.className = 'chart-hover-axis-interest';
+                interestEl.title = row.interest.tip;
+                interestEl.textContent = formatCurrency(row.interest.value);
+                el.appendChild(interestEl);
             }
+
+            layer.appendChild(el);
         }
     }
     
@@ -230,8 +345,9 @@ class ChartManager {
     }
     
     clearSeries(chart) {
-        this.clearHoverPriceLines();
+        this.clearAxisLabels();
         this.seriesDisplayNames.clear();
+        this.seriesInterestByTime.clear();
 
         Object.keys(this.chartSeries).forEach(key => {
             const entry = this.chartSeries[key];
@@ -268,7 +384,12 @@ class ChartManager {
             if (cfg.showLegendTitle) {
                 this.registerSeriesDisplayName(lineSeries, series.name);
             }
-            lineSeries.setData(series.data);
+            this.registerSeriesInterestByTime(lineSeries, series.data);
+            // LC only needs time/value; interestPaid is kept in seriesInterestByTime.
+            lineSeries.setData(series.data.map((point) => ({
+                time: point.time,
+                value: point.value
+            })));
             this.chartSeries.individualLoans.push(lineSeries);
         });
     }

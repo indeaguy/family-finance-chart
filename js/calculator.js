@@ -64,7 +64,8 @@ class FinanceCalculator {
             remainingBalance: loan.amount,
             startMonth: loan.startMonth || 1,
             isPaidOff: false,
-            payoffMonth: null
+            payoffMonth: null,
+            cumulativeInterestPaid: 0
         }));
 
         const individualLoanSeries = loans.map((loan, index) => ({
@@ -107,9 +108,11 @@ class FinanceCalculator {
             loanPayments.forEach((loan, index) => {
                 if (month < loan.startMonth) return;
                 if (loan.isPaidOff && loan.payoffMonth != null && month > loan.payoffMonth) return;
+                // interestPaid is for hover axis companions; LC series data only uses time/value.
                 individualLoanSeries[index].data.push({
                     time: dataPoint.timestamp,
-                    value: loan.remainingBalance
+                    value: loan.remainingBalance,
+                    interestPaid: loan.cumulativeInterestPaid
                 });
             });
             
@@ -155,6 +158,7 @@ class FinanceCalculator {
                 const monthlyPrincipal = Math.min(loan.monthlyPayment - monthlyInterest, loan.remainingBalance);
                 
                 loan.remainingBalance -= monthlyPrincipal;
+                loan.cumulativeInterestPaid += monthlyInterest;
                 monthlyPayment += monthlyInterest + monthlyPrincipal;
                 interestPaid += monthlyInterest;
                 principalPaid += monthlyPrincipal;
