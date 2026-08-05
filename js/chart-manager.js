@@ -5,6 +5,7 @@
  *   (window.showChartHover on crosshair); DOM: #chart container (passed into createChart).
  * Hover right-axis labels are DOM (title + amount + interest) with collision stacking —
  * LC native axis pills cannot do adjacent interest or shared stacking with custom badges.
+ * Near a line, that series and its axis row emphasize; others dim (see SERIES_HOVER_*).
  */
 
 /** Per-loan balance line styling — edit here (not exposed in UI). */
@@ -33,6 +34,12 @@ const SERIES_AXIS_LABEL_OPTS = {
     priceLineVisible: false,
     title: ''
 };
+
+/** Non-hovered series/labels fade to this alpha when the pointer is near a line. */
+const SERIES_HOVER_DIM_ALPHA = 0.28;
+
+/** Max vertical distance (px) from pointer to a line before hover emphasis applies. */
+const SERIES_HOVER_HIT_PX = 16;
 
 class ChartManager {
     constructor() {
@@ -77,6 +84,12 @@ class ChartManager {
 
         /** @type {object|null} LightweightCharts chart instance */
         this.chart = null;
+
+        /** @type {Map<object, { color: string, lineWidth: number, lineStyle: number }>} */
+        this.seriesBaseStyles = new Map();
+
+        /** @type {object|null} series currently emphasized on line hover */
+        this.activeHoveredSeries = null;
     }
     
     createChart(container) {
@@ -177,12 +190,14 @@ class ChartManager {
         chart.subscribeCrosshairMove(param => {
             if (!param.time || !window.app || !window.app.uiManager) {
                 this.clearAxisLabels();
+                this.setHoveredSeries(null);
                 return;
             }
 
             const chartData = window.app.uiManager.currentChartData;
             if (!chartData || chartData.length === 0) {
                 this.clearAxisLabels();
+                this.setHoveredSeries(null);
                 return;
             }
 
@@ -190,8 +205,101 @@ class ChartManager {
             if (dataPoint && window.showChartHover) {
                 window.showChartHover(param, dataPoint);
             }
-            this.updateHoverAxisLabels(param, dataPoint);
+
+            const hoveredSeries = this.resolveHoveredSeries(param);
+            this.setHoveredSeries(hoveredSeries);
+            this.updateHoverAxisLabels(param, dataPoint, hoveredSeries);
         });
+    }
+
+    registerSeriesStyle(series, options) {
+        if (!series) return;
+        this.seriesBaseStyles.set(series, {
+            color: options.color,
+            lineWidth: options.lineWidth,
+            lineStyle: options.lineStyle ?? LightweightCharts.LineStyle.Solid
+        });
+    }
+
+    colorWithAlpha(color, alpha) {
+        if (!color || typeof color !== 'string') return color;
+        if (color.startsWith('#')) {
+            const hex = color.length === 4
+                ? color.slice(1).split('').map((c) => c + c).join('')
+                : color.slice(1);
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        const rgbaMatch = color.match(/rgba?\(([^)]+)\)/);
+        if (rgbaMatch) {
+            const parts = rgbaMatch[1].split(',').map((part) => part.trim());
+            if (parts.length >= 3) {
+                return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+            }
+        }
+        return color;
+    }
+
+    resolveHoveredSeries(param) {
+        if (param.hoveredSeries) {
+            return param.hoveredSeries;
+        }
+        if (!param.point || !param.time || !param.seriesData) {
+            return null;
+        }
+
+        const mouseY = param.point.y;
+        let closestSeries = null;
+        let closestDistance = Infinity;
+
+        for (const series of this.getTrackedSeries()) {
+            const data = param.seriesData.get(series);
+            if (!data || data.value == null) continue;
+
+            const y = series.priceToCoordinate(data.value);
+            if (y == null || !Number.isFinite(y)) continue;
+
+            const distance = Math.abs(y - mouseY);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestSeries = series;
+            }
+        }
+
+        return closestDistance <= SERIES_HOVER_HIT_PX ? closestSeries : null;
+    }
+
+    setHoveredSeries(series) {
+        if (this.activeHoveredSeries === series) {
+            return;
+        }
+        this.activeHoveredSeries = series;
+        this.applySeriesHoverHighlight(series);
+    }
+
+    applySeriesHoverHighlight(hoveredSeries) {
+        for (const series of this.getTrackedSeries()) {
+            const base = this.seriesBaseStyles.get(series);
+            if (!base) continue;
+
+            if (!hoveredSeries) {
+                series.applyOptions({
+                    color: base.color,
+                    lineWidth: base.lineWidth,
+                    lineStyle: base.lineStyle
+                });
+                continue;
+            }
+
+            const isHovered = series === hoveredSeries;
+            series.applyOptions({
+                color: isHovered ? base.color : this.colorWithAlpha(base.color, SERIES_HOVER_DIM_ALPHA),
+                lineWidth: isHovered ? base.lineWidth + 1 : base.lineWidth,
+                lineStyle: base.lineStyle
+            });
+        }
     }
 
     getTrackedSeries() {
@@ -273,7 +381,7 @@ class ChartManager {
      * Build stacked right-axis hover rows: [title][amount][interest].
      * Nudges overlapping rows apart so labels don't collide (LC stacking stand-in).
      */
-    updateHoverAxisLabels(param, dataPoint) {
+    updateHoverAxisLabels(param, dataPoint, hoveredSeries = null) {
         if (!this.axisLabelLayer || !this.chart || !param.seriesData) {
             this.clearAxisLabels();
             return;
@@ -290,10 +398,12 @@ class ChartManager {
             const y = series.priceToCoordinate(data.value);
             if (y == null || !Number.isFinite(y)) continue;
 
+            const baseStyle = this.seriesBaseStyles.get(series);
             const interest = this.resolveInterestForSeries(series, dataPoint, param.time);
             rows.push({
+                series,
                 y,
-                color: series.options().color || '#888888',
+                color: baseStyle?.color || series.options().color || '#888888',
                 title: this.seriesDisplayNames.get(series) || '',
                 amount: data.value,
                 interest
@@ -319,6 +429,13 @@ class ChartManager {
         for (const row of rows) {
             const el = document.createElement('div');
             el.className = 'chart-hover-axis-pair';
+            if (hoveredSeries) {
+                el.classList.add(
+                    row.series === hoveredSeries
+                        ? 'chart-hover-axis-pair--active'
+                        : 'chart-hover-axis-pair--dimmed'
+                );
+            }
             el.style.top = `${row.y}px`;
             el.style.left = `${left}px`;
             el.style.setProperty('--axis-color', row.color);
@@ -378,6 +495,8 @@ class ChartManager {
         this.clearAxisLabels();
         this.seriesDisplayNames.clear();
         this.seriesInterestByTime.clear();
+        this.seriesBaseStyles.clear();
+        this.activeHoveredSeries = null;
 
         Object.keys(this.chartSeries).forEach(key => {
             const entry = this.chartSeries[key];
@@ -403,14 +522,16 @@ class ChartManager {
             if (!series.data || series.data.length === 0) return;
 
             const color = this.individualLoanColors[index % this.individualLoanColors.length];
-            const lineSeries = chart.addLineSeries({
+            const lineOpts = {
                 color,
                 lineWidth: cfg.lineWidth,
                 lineStyle: cfg.lineStyle,
                 title: '',
                 priceLineVisible: cfg.priceLineVisible,
                 lastValueVisible: cfg.lastValueVisible
-            });
+            };
+            const lineSeries = chart.addLineSeries(lineOpts);
+            this.registerSeriesStyle(lineSeries, lineOpts);
             if (cfg.showLegendTitle) {
                 this.registerSeriesDisplayName(lineSeries, series.name);
             }
@@ -434,14 +555,16 @@ class ChartManager {
             if (!series.data || series.data.length === 0) return;
 
             const color = this.individualSavingsColors[index % this.individualSavingsColors.length];
-            const lineSeries = chart.addLineSeries({
+            const lineOpts = {
                 color,
                 lineWidth: cfg.lineWidth,
                 lineStyle: cfg.lineStyle,
                 title: '',
                 priceLineVisible: cfg.priceLineVisible,
                 lastValueVisible: cfg.lastValueVisible
-            });
+            };
+            const lineSeries = chart.addLineSeries(lineOpts);
+            this.registerSeriesStyle(lineSeries, lineOpts);
             if (cfg.showLegendTitle) {
                 this.registerSeriesDisplayName(lineSeries, series.name);
             }
@@ -458,21 +581,25 @@ class ChartManager {
         if (!results.savingsData || results.savingsData.length === 0) {
             return;
         }
-        this.chartSeries.savings = chart.addLineSeries({
+        const savingsOpts = {
             color: '#26a69a',
             lineWidth: 3,
             ...SERIES_AXIS_LABEL_OPTS
-        });
+        };
+        this.chartSeries.savings = chart.addLineSeries(savingsOpts);
+        this.registerSeriesStyle(this.chartSeries.savings, savingsOpts);
         this.registerSeriesDisplayName(this.chartSeries.savings, 'Total Savings');
         this.chartSeries.savings.setData(results.savingsData);
     }
     
     addNetWorthLine(chart, results) {
-        this.chartSeries.netWorth = chart.addLineSeries({
+        const netWorthOpts = {
             color: '#2196f3',
             lineWidth: 3,
             ...SERIES_AXIS_LABEL_OPTS
-        });
+        };
+        this.chartSeries.netWorth = chart.addLineSeries(netWorthOpts);
+        this.registerSeriesStyle(this.chartSeries.netWorth, netWorthOpts);
         this.registerSeriesDisplayName(
             this.chartSeries.netWorth,
             'Net Worth' + (results.hasOverrides ? ' (With Overrides)' : '')
@@ -481,12 +608,14 @@ class ChartManager {
         
         // Add comparison line if there are overrides
         if (results.hasOverrides) {
-            this.chartSeries.netWorthOriginal = chart.addLineSeries({
+            const netWorthOriginalOpts = {
                 color: '#2196f3',
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 ...SERIES_AXIS_LABEL_OPTS
-            });
+            };
+            this.chartSeries.netWorthOriginal = chart.addLineSeries(netWorthOriginalOpts);
+            this.registerSeriesStyle(this.chartSeries.netWorthOriginal, netWorthOriginalOpts);
             this.registerSeriesDisplayName(this.chartSeries.netWorthOriginal, 'Original Net Worth (No Overrides)');
             this.chartSeries.netWorthOriginal.setData(results.netWorthOriginalData);
         }
@@ -494,11 +623,13 @@ class ChartManager {
     
     addLoanBalanceLine(chart, results) {
         if (results.loanBalanceData.length > 0) {
-            this.chartSeries.loanBalance = chart.addLineSeries({
+            const loanBalanceOpts = {
                 color: '#f44336',
                 lineWidth: 2,
                 ...SERIES_AXIS_LABEL_OPTS
-            });
+            };
+            this.chartSeries.loanBalance = chart.addLineSeries(loanBalanceOpts);
+            this.registerSeriesStyle(this.chartSeries.loanBalance, loanBalanceOpts);
             this.registerSeriesDisplayName(this.chartSeries.loanBalance, 'Total Loan Balance');
             this.chartSeries.loanBalance.setData(results.loanBalanceData);
         }
@@ -506,12 +637,14 @@ class ChartManager {
     
     addGoalLine(chart, results) {
         if (results.goalAmount > 0) {
-            this.chartSeries.goalLine = chart.addLineSeries({
+            const goalLineOpts = {
                 color: '#ff9800',
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 ...SERIES_AXIS_LABEL_OPTS
-            });
+            };
+            this.chartSeries.goalLine = chart.addLineSeries(goalLineOpts);
+            this.registerSeriesStyle(this.chartSeries.goalLine, goalLineOpts);
             this.registerSeriesDisplayName(
                 this.chartSeries.goalLine,
                 `Goal: $${results.goalAmount.toLocaleString()}`

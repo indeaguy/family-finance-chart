@@ -153,6 +153,20 @@ body {
     border-radius: 2px;
     overflow: hidden;
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+    transition: opacity 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+
+.chart-hover-axis-pair--dimmed {
+    opacity: 0.32;
+}
+
+.chart-hover-axis-pair--active {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.04);
+    z-index: 2;
+    box-shadow:
+        0 0 0 2px var(--axis-color, #888),
+        0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 .chart-hover-axis-title,
