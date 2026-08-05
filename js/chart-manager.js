@@ -124,6 +124,9 @@ class ChartManager {
                     bottom: 0.1
                 },
             },
+            localization: {
+                priceFormatter: (price) => formatCurrency(price),
+            },
             timeScale: {
                 borderColor: '#cccccc',
                 timeVisible: true,
