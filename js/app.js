@@ -1,14 +1,15 @@
 /**
  * Main orchestrator: wires components, owns chart lifecycle, exposes HTML onclick globals.
  * Defines globals: FinanceApp, app / window.app, addLoan, removeLoan, showLoanDetail,
- *   closeLoanDetail, showAddLoanForm, closeAddLoanForm, showAddSavingsForm,
+ *   closeLoanDetail, showAddLoanForm, closeAddLoanForm, addSavingsAccount, removeSavingsAccount,
+ *   showSavingsDetail, closeSavingsDetail, showAddSavingsForm, closeAddSavingsForm,
  *   clearAllLoans, exportToJSON,
  *   importFromJSON, showNetWorthOverrides, closeNetWorthOverrides,
  *   addNetWorthOverrideFromForm, removeNetWorthOverride
  * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
- *   folder-sheet.js (resetFolderSheetRaise after loan list changes);
- *   field-model via UIManager.ensureLoanFormFields before loan DOM listeners;
- *   DOM: #chart, savings form inputs, #addLoanFormFields / #loanStartDate, #jsonFileInput
+ *   folder-sheet.js (resetFolderSheetRaise after loan/savings list changes);
+ *   field-model via UIManager.ensureLoanFormFields / ensureSavingsFormFields;
+ *   DOM: #chart, projection inputs, loan/savings form fields, #jsonFileInput
  */
 
 class FinanceApp {
@@ -51,8 +52,9 @@ class FinanceApp {
         // Initialize chart
         this.initializeChart();
 
-        // Build schema-driven loan form before listeners/defaults touch #loanAmount etc.
+        // Build schema-driven forms before listeners/defaults touch field DOM ids
         this.uiManager.ensureLoanFormFields();
+        this.uiManager.ensureSavingsFormFields();
         
         // Set up event listeners
         this.setupEventListeners();
@@ -60,9 +62,10 @@ class FinanceApp {
         // Set default values
         this.setDefaultValues();
 
-        // Demo loans from js/default_config/ unless the user already imported JSON
+        // Demo loans/savings from js/default_config/ unless the user already imported JSON
         this.dataManager.loadDefaultExampleIfNeeded();
         this.uiManager.updateLoansList(this.dataManager.getLoans());
+        this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
         this.updateChart();
     }
     
@@ -77,8 +80,8 @@ class FinanceApp {
     }
     
     setupEventListeners() {
-        // Input change listeners with debouncing
-        const inputs = ['initialAmount', 'monthlySavings', 'interestRate', 'timePeriod', 'goalAmount', 'startDate'];
+        // Projection timeline inputs (hidden) — still refresh chart if changed via import
+        const inputs = ['timePeriod', 'goalAmount', 'startDate'];
         inputs.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
@@ -97,12 +100,13 @@ class FinanceApp {
     }
     
     setDefaultValues() {
-        // Set current month as default start date
+        // Set current month as default projection start date
         const now = new Date();
         const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
         
         const startDateElement = document.getElementById('startDate');
         const loanStartDateElement = document.getElementById('loanStartDate');
+        const savingsStartDateElement = document.getElementById('savingsStartDate');
         
         if (startDateElement && !startDateElement.value) {
             startDateElement.value = currentMonth;
@@ -110,6 +114,10 @@ class FinanceApp {
         
         if (loanStartDateElement && !loanStartDateElement.value) {
             loanStartDateElement.value = currentMonth;
+        }
+
+        if (savingsStartDateElement && !savingsStartDateElement.value) {
+            savingsStartDateElement.value = currentMonth;
         }
     }
     
@@ -155,8 +163,48 @@ class FinanceApp {
         this.uiManager.closeAddLoanForm();
     }
 
+    addSavingsAccount() {
+        const accountData = this.uiManager.getSavingsFormData();
+        if (!accountData) return;
+
+        const account = this.dataManager.createSavingsAccount(accountData);
+        this.dataManager.addSavingsAccount(account);
+
+        this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
+        this.updateChart();
+        this.uiManager.clearSavingsForm();
+        this.uiManager.closeAddSavingsForm();
+        if (typeof resetFolderSheetRaise === 'function') {
+            resetFolderSheetRaise();
+        }
+    }
+
     showAddSavingsForm() {
-        // Savings add form — not implemented yet
+        this.uiManager.showAddSavingsForm();
+    }
+
+    closeAddSavingsForm() {
+        this.uiManager.closeAddSavingsForm();
+    }
+
+    removeSavingsAccount(accountId) {
+        this.dataManager.removeSavingsAccount(accountId);
+        this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
+        this.uiManager.closeSavingsDetailModal();
+        this.updateChart();
+        if (typeof resetFolderSheetRaise === 'function') {
+            resetFolderSheetRaise();
+        }
+    }
+
+    showSavingsDetail(accountId) {
+        const account = this.dataManager.getSavingsAccountById(accountId);
+        if (!account) return;
+        this.uiManager.showSavingsDetailModal(account);
+    }
+
+    closeSavingsDetail() {
+        this.uiManager.closeSavingsDetailModal();
     }
     
     removeLoan(loanId) {
@@ -210,6 +258,7 @@ class FinanceApp {
             .then(data => {
                 this.uiManager.loadDataToForm(data);
                 this.uiManager.updateLoansList(this.dataManager.getLoans());
+                this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
                 this.updateChart();
             })
             .catch(error => {
@@ -269,8 +318,23 @@ function showAddLoanForm() {
 function closeAddLoanForm() {
     if (app) app.closeAddLoanForm();
 }
+function addSavingsAccount() {
+    if (app) app.addSavingsAccount();
+}
+function removeSavingsAccount(id) {
+    if (app) app.removeSavingsAccount(id);
+}
+function showSavingsDetail(id) {
+    if (app) app.showSavingsDetail(id);
+}
+function closeSavingsDetail() {
+    if (app) app.closeSavingsDetail();
+}
 function showAddSavingsForm() {
     if (app) app.showAddSavingsForm();
+}
+function closeAddSavingsForm() {
+    if (app) app.closeAddSavingsForm();
 }
 function clearAllLoans() { 
     if (app) app.clearAllLoans(); 

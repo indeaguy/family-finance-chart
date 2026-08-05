@@ -47,32 +47,10 @@
                 
                 <div class="drawer-contents">
                     <div class="control-group">
-                        <h3>💰 Savings & Interest</h3>
-                        <div class="input-row">
-                            <label>Start Date:</label>
-                            <input type="month" id="startDate" value="">
-                        </div>
-                        <div class="input-row">
-                            <label>Initial Amount ($):</label>
-                            <input type="number" id="initialAmount" value="10000" min="0">
-                        </div>
-                        <div class="input-row">
-                            <label>Monthly Savings ($):</label>
-                            <input type="number" id="monthlySavings" value="500" min="0">
-                        </div>
-                        <div class="input-row">
-                            <label>Interest Rate (%):</label>
-                            <input type="number" id="interestRate" value="7" min="0" max="50" step="0.1">
-                        </div>
-                        <div class="input-row">
-                            <label>Time Period (years):</label>
-                            <input type="number" id="timePeriod" value="20" min="1" max="50">
-                        </div>
-                        <div class="input-row">
-                            <label>Goal Amount ($):</label>
-                            <input type="number" id="goalAmount" placeholder="Optional" min="0">
-                        </div>
-                        <button onclick="showNetWorthOverrides()">📈 Net Worth Overrides</button>
+                        <!-- Savings accounts live in the folder sheet; keep projection globals for chart timeline -->
+                        <input type="hidden" id="startDate" value="">
+                        <input type="hidden" id="timePeriod" value="20">
+                        <input type="hidden" id="goalAmount" value="">
                     </div>
 
                     <div class="file-folder folder-savings" id="loansSavingsFolder" data-active-sheet="savings">
@@ -88,7 +66,9 @@
                                     </div>
                                 </div>
                                 <div class="folder-sheet loose-leaf active" id="folderSheetSavings" role="tabpanel" aria-labelledby="folderTabSavings" data-sheet="savings">
-                                    <!-- Savings sheet left empty for now -->
+                                    <div class="sheet-ruled-row sheet-heading">Active Savings</div>
+                                    <div class="loans-list" id="savingsList">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -109,6 +89,7 @@
                     
                     <div class="control-group">
                         <h3>⚡ Quick Actions</h3>
+                        <button onclick="showNetWorthOverrides()">📈 Net Worth Overrides</button>
                         <button onclick="exportToJSON()">📤 Export to JSON</button>
                         <button onclick="document.getElementById('jsonFileInput').click()">📥 Import JSON</button>
                         <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="importFromJSON(event)">
@@ -161,6 +142,29 @@
                 <div class="sheet-ruled-row">
                     <button type="button" class="sheet-inline-btn" onclick="addLoan()">Save loan</button>
                     <button type="button" class="sheet-inline-btn" onclick="closeAddLoanForm()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Savings detail — same loose-leaf paper as the folder sheet -->
+    <div id="savingsDetailModal" class="modal loan-detail-overlay">
+        <div class="loose-leaf-sheet" role="dialog" aria-modal="true" aria-labelledby="savingsDetailHeading">
+            <button type="button" class="loose-leaf-sheet-x" onclick="closeSavingsDetail()" aria-label="Close">&times;</button>
+            <div id="savingsDetailBody" class="loose-leaf-sheet-body"></div>
+        </div>
+    </div>
+
+    <!-- Add savings form — loose-leaf sheet -->
+    <div id="addSavingsModal" class="modal loan-detail-overlay">
+        <div class="loose-leaf-sheet" role="dialog" aria-modal="true" aria-labelledby="addSavingsHeading">
+            <button type="button" class="loose-leaf-sheet-x" onclick="closeAddSavingsForm()" aria-label="Close">&times;</button>
+            <div class="loose-leaf-sheet-body">
+                <div class="sheet-ruled-row sheet-heading" id="addSavingsHeading">Add Savings</div>
+                <div id="addSavingsFormFields"></div>
+                <div class="sheet-ruled-row">
+                    <button type="button" class="sheet-inline-btn" onclick="addSavingsAccount()">Save savings</button>
+                    <button type="button" class="sheet-inline-btn" onclick="closeAddSavingsForm()">Cancel</button>
                 </div>
             </div>
         </div>

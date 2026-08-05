@@ -13,10 +13,11 @@
  *   resetPencilEntranceSession, playPencilEntranceRoll, resetFolderSheetRaise);
  *   summary-overlay.js
  *   (closeSummaryOverlay, closeChartHeaderModal); app.js globals
- *   (closeNetWorthOverrides, closeLoanDetail, closeAddLoanForm);
+ *   (closeNetWorthOverrides, closeLoanDetail, closeAddLoanForm, closeSavingsDetail,
+ *   closeAddSavingsForm);
  *   DOM: #drawer, .drawer-handle, .pencil, .pencil-barrel-roll,
  *   #netWorthOverridesModal, #chartHeaderModal, #loanDetailModal,
- *   #addLoanModal, #summaryOverlay.
+ *   #addLoanModal, #savingsDetailModal, #addSavingsModal, #summaryOverlay.
  */
 
 /** Must stay in sync with `.drawer-container { transition: transform … }` */
@@ -346,9 +347,11 @@ document.addEventListener('click', function(e) {
     const chartHeaderModal = document.getElementById('chartHeaderModal');
     const loanDetailModal = document.getElementById('loanDetailModal');
     const addLoanModal = document.getElementById('addLoanModal');
+    const savingsDetailModal = document.getElementById('savingsDetailModal');
+    const addSavingsModal = document.getElementById('addSavingsModal');
     const summaryOverlay = document.getElementById('summaryOverlay');
 
-    const modalOpen = [netWorthModal, chartHeaderModal, loanDetailModal, addLoanModal].some(
+    const modalOpen = [netWorthModal, chartHeaderModal, loanDetailModal, addLoanModal, savingsDetailModal, addSavingsModal].some(
         (modal) => modal && (modal.style.display === 'block' || modal.style.display === 'flex' || modal.classList.contains('is-open'))
     );
     
@@ -373,6 +376,14 @@ document.addEventListener('click', function(e) {
 
     if (addLoanModal && e.target === addLoanModal) {
         closeAddLoanForm();
+    }
+
+    if (savingsDetailModal && e.target === savingsDetailModal) {
+        closeSavingsDetail();
+    }
+
+    if (addSavingsModal && e.target === addSavingsModal) {
+        closeAddSavingsForm();
     }
     
     // Close summary overlay when clicking outside

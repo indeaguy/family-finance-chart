@@ -5,13 +5,10 @@
  *   handleSummaryOverlayKeydown, updateSummaryOverlay, showChartHeaderModal,
  *   closeChartHeaderModal, updateChartHeader, showChartHover
  * Depends on: format.js (formatCurrency, formatTimeDisplay);
- *   window.app.dataManager (loan data for overlay totals);
+ *   window.app.calculator (preferred) or dataManager + #timePeriod for overlay totals;
  *   DOM: #summaryOverlay, #summaryOverlayContent, .summary-overlay-title,
- *   .summary-toggle, #chartHeaderModal, .chart-header, and the savings form
- *   inputs (#initialAmount, #monthlySavings, #interestRate, #timePeriod,
- *   #goalAmount).
- * Note: updateSummaryOverlay duplicates calculator.js compound-interest math;
- * formula changes must be applied in both places.
+ *   .summary-toggle, #chartHeaderModal, .chart-header, #timePeriod.
+ * Note: prefers FinanceCalculator results so multi-account savings stay in sync.
  */
 
 // Summary overlay management
@@ -84,48 +81,28 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateSummaryOverlay() {
     const container = document.getElementById('summaryOverlayContent');
     if (!container) return;
-    
-    // Get current values
-    const initialAmount = parseFloat(document.getElementById('initialAmount').value) || 0;
-    const monthlySavings = parseFloat(document.getElementById('monthlySavings').value) || 0;
-    const interestRate = parseFloat(document.getElementById('interestRate').value) || 0;
-    const timePeriod = parseInt(document.getElementById('timePeriod').value) || 1;
-    const goalAmount = parseFloat(document.getElementById('goalAmount').value) || 0;
-    
-    // Calculate final values
-    const monthlyRate = interestRate / 100 / 12;
-    const totalMonths = timePeriod * 12;
-    
-    let finalSavings = initialAmount;
-    if (monthlyRate > 0) {
-        finalSavings = initialAmount * Math.pow(1 + monthlyRate, totalMonths) + 
-                      monthlySavings * ((Math.pow(1 + monthlyRate, totalMonths) - 1) / monthlyRate);
-    } else {
-        finalSavings = initialAmount + (monthlySavings * totalMonths);
-    }
-    
-    // Get loan data from app if available
+
+    const timePeriod = parseInt(document.getElementById('timePeriod')?.value, 10) || 1;
+    let finalSavings = 0;
+    let netWorth = 0;
+    let totalInterest = 0;
     let totalLoanBalance = 0;
-    if (window.app && window.app.dataManager) {
-        const loans = window.app.dataManager.getLoans();
-        loans.forEach(loan => {
-            const loanMonths = Math.min(totalMonths - loan.startMonth + 1, loan.term * 12);
-            if (loanMonths > 0) {
-                const monthlyRate = loan.rate / 100 / 12;
-                if (monthlyRate > 0) {
-                    const remaining = loan.amount * Math.pow(1 + monthlyRate, loanMonths) - 
-                                    loan.monthlyPayment * ((Math.pow(1 + monthlyRate, loanMonths) - 1) / monthlyRate);
-                    totalLoanBalance += Math.max(0, remaining);
-                } else {
-                    totalLoanBalance += Math.max(0, loan.amount - (loan.monthlyPayment * loanMonths));
-                }
-            }
-        });
+    let monthlySavings = 0;
+
+    if (window.app && window.app.calculator) {
+        const results = window.app.calculator.calculateFinancialGrowth();
+        finalSavings = results.finalSavings || 0;
+        netWorth = results.finalNetWorth || 0;
+        totalLoanBalance = Math.max(0, finalSavings - netWorth);
+        const last = results.data && results.data[results.data.length - 1];
+        totalInterest = last ? last.interestEarned : 0;
+        if (window.app.dataManager) {
+            monthlySavings = window.app.dataManager.getSavingsAccounts().reduce(
+                (sum, account) => sum + (account.monthlyContribution || 0),
+                0
+            );
+        }
     }
-    
-    const netWorth = finalSavings - totalLoanBalance;
-    const totalContributions = initialAmount + (monthlySavings * totalMonths);
-    const totalInterest = finalSavings - totalContributions;
     
     // Reset the title to default
     const titleElement = document.querySelector('.summary-overlay-title');

@@ -1,12 +1,10 @@
 /**
  * Compound-interest and loan amortization math; builds chart data points and payoff markers.
  * Defines globals: FinanceCalculator
- * Depends on: DataManager (injected via setDataManager) for loans and overrides;
- *   DOM form inputs: #initialAmount, #monthlySavings, #interestRate, #timePeriod,
- *   #goalAmount, #startDate
- * Owns: calculateMonthlyPayment, remainingBalanceAsOf (single-loan amortize through a date)
- * Note: summary-overlay.js duplicates some compound-interest math for the overlay;
- * formula changes must be applied in both places.
+ * Depends on: DataManager (injected via setDataManager) for loans, savings accounts, overrides;
+ *   DOM projection inputs: #timePeriod, #goalAmount, #startDate
+ * Owns: calculateMonthlyPayment, remainingBalanceAsOf, savingsBalanceAsOf
+ * Note: summary-overlay.js may mirror projection totals; prefer calculator results when available.
  */
 
 class FinanceCalculator {
@@ -26,17 +24,13 @@ class FinanceCalculator {
     
     getCalculationParameters() {
         return {
-            initialAmount: parseFloat(document.getElementById('initialAmount').value) || 0,
-            monthlySavings: parseFloat(document.getElementById('monthlySavings').value) || 0,
-            annualRate: parseFloat(document.getElementById('interestRate').value) || 0,
-            years: parseInt(document.getElementById('timePeriod').value) || 1,
-            goalAmount: parseFloat(document.getElementById('goalAmount').value) || 0,
-            startDate: document.getElementById('startDate').value
+            years: parseInt(document.getElementById('timePeriod')?.value, 10) || 1,
+            goalAmount: parseFloat(document.getElementById('goalAmount')?.value) || 0,
+            startDate: document.getElementById('startDate')?.value || ''
         };
     }
     
     performCalculations(params) {
-        const monthlyRate = params.annualRate / 100 / 12;
         const totalMonths = params.years * 12;
         const baseDate = params.startDate ? new Date(params.startDate + '-01') : new Date();
         
@@ -49,13 +43,14 @@ class FinanceCalculator {
         const loanPayoffMarkers = [];
         
         // Initialize state
-        let currentSavings = params.initialAmount;
+        let currentSavings = 0;
         let totalInterestPaid = 0;
         let totalPrincipalPaid = 0;
         let goalReachedMonth = null;
         
-        // Get loans and overrides from data manager
+        // Get loans, savings accounts, and overrides from data manager
         const loans = this.dataManager ? this.dataManager.getLoans() : [];
+        const savingsAccounts = this.dataManager ? this.dataManager.getSavingsAccounts() : [];
         const overrides = this.dataManager ? this.dataManager.getOverrides() : {};
         
         // Prepare loan tracking
@@ -73,15 +68,32 @@ class FinanceCalculator {
             name: (loan.name && String(loan.name).trim()) || `Loan ${index + 1}`,
             data: []
         }));
+
+        // Prepare savings account tracking (balances sum to Total Savings)
+        const accountStates = savingsAccounts.map(account => ({
+            ...account,
+            balance: 0,
+            started: false,
+            startMonth: account.startMonth || 1,
+            endMonth: account.endMonth != null ? account.endMonth : null,
+            cumulativeInterest: 0,
+            cumulativeContributions: 0
+        }));
+
+        const individualSavingsSeries = savingsAccounts.map((account, index) => ({
+            id: account.id,
+            name: (account.name && String(account.name).trim()) || `Savings ${index + 1}`,
+            data: []
+        }));
         
         // Monthly calculations
         for (let month = 1; month <= totalMonths; month++) {
-            // Apply compound interest and add monthly savings
-            currentSavings = currentSavings * (1 + monthlyRate) + params.monthlySavings;
+            // Grow each savings account (freeze after endMonth at that month's ending value)
+            const savingsStep = this.calculateSavingsBalances(accountStates, month);
+            currentSavings = savingsStep.totalBalance;
             
-            // Calculate loan payments and balances
+            // Calculate loan payments and balances (do not reduce savings — accounts sum to total)
             const loanResults = this.calculateLoanPayments(loanPayments, month, baseDate, loanPayoffMarkers);
-            currentSavings -= loanResults.monthlyPayment;
             totalInterestPaid += loanResults.interestPaid;
             totalPrincipalPaid += loanResults.principalPaid;
             
@@ -92,11 +104,20 @@ class FinanceCalculator {
             
             // Calculate net worth
             const netWorth = currentSavings - totalLoanBalance;
+
+            const totalContributions = accountStates.reduce((sum, account) => {
+                if (account.includeInTotal === false) return sum;
+                return sum + account.cumulativeContributions;
+            }, 0);
+            const interestEarned = accountStates.reduce((sum, account) => {
+                if (account.includeInTotal === false) return sum;
+                return sum + account.cumulativeInterest;
+            }, 0);
             
             // Create data point
             const dataPoint = this.createDataPoint(
                 month, baseDate, currentSavings, netWorth, totalLoanBalance,
-                params, totalInterestPaid, totalPrincipalPaid, overrideResult.hasOverride
+                totalContributions, interestEarned, totalInterestPaid, overrideResult.hasOverride
             );
             
             // Store data
@@ -113,6 +134,15 @@ class FinanceCalculator {
                     time: dataPoint.timestamp,
                     value: loan.remainingBalance,
                     interestPaid: loan.cumulativeInterestPaid
+                });
+            });
+
+            accountStates.forEach((account, index) => {
+                if (month < account.startMonth) return;
+                individualSavingsSeries[index].data.push({
+                    time: dataPoint.timestamp,
+                    value: account.balance,
+                    interestEarned: account.cumulativeInterest
                 });
             });
             
@@ -135,6 +165,7 @@ class FinanceCalculator {
             netWorthOriginalData,
             loanBalanceData,
             individualLoanSeries,
+            individualSavingsSeries,
             loanPayoffMarkers,
             finalSavings: currentSavings,
             finalNetWorth: currentSavings - (loanPayments.reduce((sum, loan) => sum + loan.remainingBalance, 0)),
@@ -144,6 +175,43 @@ class FinanceCalculator {
             goalReachedMonth,
             hasOverrides: Object.keys(overrides).length > 0
         };
+    }
+
+    /**
+     * Advance each savings account one month. After endMonth (inclusive last growth month),
+     * balance freezes but still counts toward the total for the rest of the chart
+     * (unless includeInTotal is false — earmarked spend, still drawn as its own line).
+     */
+    calculateSavingsBalances(accountStates, month) {
+        let totalBalance = 0;
+
+        accountStates.forEach(account => {
+            if (month < account.startMonth) {
+                return;
+            }
+
+            if (!account.started) {
+                account.balance = account.amount || 0;
+                account.cumulativeContributions = account.amount || 0;
+                account.started = true;
+            }
+
+            const pastEnd = account.endMonth != null && month > account.endMonth;
+            if (!pastEnd) {
+                const monthlyRate = (account.rate || 0) / 100 / 12;
+                const interest = account.balance * monthlyRate;
+                const contribution = account.monthlyContribution || 0;
+                account.balance = account.balance * (1 + monthlyRate) + contribution;
+                account.cumulativeInterest += interest;
+                account.cumulativeContributions += contribution;
+            }
+
+            if (account.includeInTotal !== false) {
+                totalBalance += account.balance;
+            }
+        });
+
+        return { totalBalance };
     }
     
     calculateLoanPayments(loanPayments, month, baseDate, loanPayoffMarkers) {
@@ -227,7 +295,7 @@ class FinanceCalculator {
         }
     }
     
-    createDataPoint(month, baseDate, savings, netWorth, loanBalance, params, totalInterestPaid, totalPrincipalPaid, hasOverride) {
+    createDataPoint(month, baseDate, savings, netWorth, loanBalance, totalContributions, interestEarned, totalInterestPaid, hasOverride) {
         const date = new Date(baseDate);
         date.setMonth(date.getMonth() + month - 1);
         const timestamp = Math.floor(date.getTime() / 1000);
@@ -240,8 +308,8 @@ class FinanceCalculator {
             netWorth,
             netWorthOriginal: netWorth,
             loanBalance,
-            totalContributions: params.initialAmount + (params.monthlySavings * month),
-            interestEarned: savings - (params.initialAmount + (params.monthlySavings * month)) + totalPrincipalPaid,
+            totalContributions,
+            interestEarned,
             totalInterestPaid,
             override: hasOverride,
             timestamp
@@ -300,6 +368,58 @@ class FinanceCalculator {
             const monthlyPrincipal = Math.min(payment - monthlyInterest, balance);
             balance -= monthlyPrincipal;
             if (balance < 0) balance = 0;
+        }
+
+        return balance;
+    }
+
+    /**
+     * Project a single savings account balance through asOfDate's calendar month.
+     * After endDate/endMonth the balance freezes (must match calculateSavingsBalances).
+     */
+    savingsBalanceAsOf(account, asOfDate = new Date(), baseDate = null) {
+        if (!account || !Number.isFinite(account.amount)) return 0;
+
+        let startMonthDate;
+        if (account.startDate && /^\d{4}-\d{2}$/.test(account.startDate)) {
+            const [y, m] = account.startDate.split('-').map(Number);
+            startMonthDate = new Date(y, m - 1, 1);
+        } else if (baseDate) {
+            startMonthDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+            startMonthDate.setMonth(startMonthDate.getMonth() + (account.startMonth || 1) - 1);
+        } else {
+            return account.amount;
+        }
+
+        if (Number.isNaN(startMonthDate.getTime())) return account.amount;
+
+        const asOf = new Date(asOfDate.getFullYear(), asOfDate.getMonth(), 1);
+        if (asOf < startMonthDate) return account.amount;
+
+        let endMonthIndex = null;
+        if (account.endDate && /^\d{4}-\d{2}$/.test(account.endDate)) {
+            const [y, m] = account.endDate.split('-').map(Number);
+            const endDate = new Date(y, m - 1, 1);
+            endMonthIndex =
+                (endDate.getFullYear() - startMonthDate.getFullYear()) * 12 +
+                (endDate.getMonth() - startMonthDate.getMonth()) + 1;
+        } else if (account.endMonth != null && baseDate) {
+            endMonthIndex = account.endMonth - (account.startMonth || 1) + 1;
+        }
+
+        const monthsElapsed =
+            (asOf.getFullYear() - startMonthDate.getFullYear()) * 12 +
+            (asOf.getMonth() - startMonthDate.getMonth()) + 1;
+
+        let balance = account.amount;
+        const monthlyRate = (account.rate || 0) / 100 / 12;
+        const contribution = account.monthlyContribution || 0;
+        const growthMonths = endMonthIndex != null
+            ? Math.min(monthsElapsed, endMonthIndex)
+            : monthsElapsed;
+
+        for (let i = 0; i < growthMonths; i++) {
+            balance = balance * (1 + monthlyRate) + contribution;
         }
 
         return balance;

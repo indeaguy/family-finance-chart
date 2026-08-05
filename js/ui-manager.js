@@ -1,9 +1,10 @@
 /**
- * Form collection/validation, loans list (ruled-row grid), loan detail/add-loan modals, JSON download.
+ * Form collection/validation, loans/savings lists (ruled-row grids), detail/add modals, JSON download.
  * Defines globals: UIManager
- * Depends on: LOAN_FIELDS + field-model helpers (renderFormFields, renderTable, renderDetailRows,
- *   filterFields, readFormValue); DOM #addLoanFormFields, #loansList, #addLoanModal,
- *   #loanDetailModal, #loanDetailBody, savings form fields for loadDataToForm;
+ * Depends on: LOAN_FIELDS, SAVINGS_FIELDS + field-model helpers (renderFormFields, renderTable,
+ *   renderDetailRows, filterFields, readFormValue); DOM #addLoanFormFields, #loansList,
+ *   #addLoanModal, #loanDetailModal, #addSavingsFormFields, #savingsList, #addSavingsModal,
+ *   #savingsDetailModal, projection fields for loadDataToForm (#startDate, #timePeriod, #goalAmount);
  *   formatCurrency is a method here (separate from format.js globals used by the summary overlay)
  */
 
@@ -11,6 +12,7 @@ class UIManager {
     constructor() {
         this.currentChartData = [];
         this.loanFormBuilt = false;
+        this.savingsFormBuilt = false;
     }
 
     ensureLoanFormFields() {
@@ -20,13 +22,28 @@ class UIManager {
         this.loanFormBuilt = true;
     }
 
+    ensureSavingsFormFields() {
+        const container = document.getElementById('addSavingsFormFields');
+        if (!container || this.savingsFormBuilt) return;
+        renderFormFields(container, SAVINGS_FIELDS);
+        this.savingsFormBuilt = true;
+    }
+
     getLoanFieldContext() {
+        return this.getProjectionFieldContext('table');
+    }
+
+    getSavingsFieldContext() {
+        return this.getProjectionFieldContext('table');
+    }
+
+    getProjectionFieldContext(surface = 'table') {
         if (window.app && window.app.dataManager) {
-            return { ...window.app.dataManager.getLoanFieldContext(), surface: 'table' };
+            return { ...window.app.dataManager.getProjectionFieldContext(), surface };
         }
         const savingsStartDate = document.getElementById('startDate')?.value;
         const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
-        return { baseDate, asOfDate: new Date(), surface: 'table' };
+        return { baseDate, asOfDate: new Date(), surface };
     }
     
     // Form Data Management
@@ -125,12 +142,12 @@ class UIManager {
     
     loadDataToForm(data) {
         if (data.savings) {
-            document.getElementById('startDate').value = data.savings.startDate || '';
-            document.getElementById('initialAmount').value = data.savings.initialAmount || 0;
-            document.getElementById('monthlySavings').value = data.savings.monthlySavings || 0;
-            document.getElementById('interestRate').value = data.savings.interestRate || 0;
-            document.getElementById('timePeriod').value = data.savings.timePeriod || 1;
-            document.getElementById('goalAmount').value = data.savings.goalAmount || '';
+            const startEl = document.getElementById('startDate');
+            const timeEl = document.getElementById('timePeriod');
+            const goalEl = document.getElementById('goalAmount');
+            if (startEl && data.savings.startDate) startEl.value = data.savings.startDate;
+            if (timeEl) timeEl.value = data.savings.timePeriod || 20;
+            if (goalEl) goalEl.value = data.savings.goalAmount || '';
         }
         
         if (data.chartHeader) {
@@ -166,6 +183,167 @@ class UIManager {
                 `tabindex="0" onclick="showLoanDetail(${loan.id})" ` +
                 `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanDetail(${loan.id});}"`
         });
+    }
+
+    getSavingsFormData() {
+        this.ensureSavingsFormFields();
+
+        const amountField = SAVINGS_FIELDS.find(f => f.key === 'amount');
+        const nameField = SAVINGS_FIELDS.find(f => f.key === 'name');
+        const monthlyField = SAVINGS_FIELDS.find(f => f.key === 'monthlyContribution');
+        const rateField = SAVINGS_FIELDS.find(f => f.key === 'rate');
+        const startField = SAVINGS_FIELDS.find(f => f.key === 'startDate');
+        const endField = SAVINGS_FIELDS.find(f => f.key === 'endDate');
+        const includeField = SAVINGS_FIELDS.find(f => f.key === 'includeInTotal');
+
+        const amount = readFormValue(amountField, document.getElementById(amountField.domId)) || 0;
+        const name = readFormValue(nameField, document.getElementById(nameField.domId));
+        const monthlyContribution = readFormValue(monthlyField, document.getElementById(monthlyField.domId)) || 0;
+        const rate = readFormValue(rateField, document.getElementById(rateField.domId)) || 0;
+        const startDate = readFormValue(startField, document.getElementById(startField.domId));
+        const endDate = readFormValue(endField, document.getElementById(endField.domId)) || '';
+        const includeInTotal = readFormValue(includeField, document.getElementById(includeField.domId));
+
+        if (amount < 0) {
+            alert('Please enter a valid initial amount');
+            return null;
+        }
+
+        if (!startDate) {
+            alert('Please select a start date for the savings account');
+            return null;
+        }
+
+        const savingsStartDate = document.getElementById('startDate').value;
+        const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+        const startDateObj = new Date(startDate + '-01');
+
+        const startMonth = (startDateObj.getFullYear() - baseDate.getFullYear()) * 12 +
+                          (startDateObj.getMonth() - baseDate.getMonth()) + 1;
+
+        if (startMonth < 1) {
+            alert('Savings start date must be on or after the projection start date');
+            return null;
+        }
+
+        let endMonth = null;
+        if (endDate) {
+            const endDateObj = new Date(endDate + '-01');
+            endMonth = (endDateObj.getFullYear() - baseDate.getFullYear()) * 12 +
+                       (endDateObj.getMonth() - baseDate.getMonth()) + 1;
+            if (endMonth < startMonth) {
+                alert('End date must be on or after the start date');
+                return null;
+            }
+        }
+
+        return {
+            name: name && String(name).trim(),
+            amount,
+            monthlyContribution,
+            rate,
+            startDate,
+            startMonth,
+            endDate: endDate || '',
+            endMonth,
+            includeInTotal: includeInTotal !== false
+        };
+    }
+
+    clearSavingsForm() {
+        this.ensureSavingsFormFields();
+
+        filterFields(SAVINGS_FIELDS, 'form').forEach(field => {
+            const el = document.getElementById(field.domId || field.key);
+            if (!el) return;
+            if (field.key === 'startDate' || field.key === 'endDate') return;
+            const def = field.default !== undefined && field.default !== null ? field.default : '';
+            if (field.type === 'boolean') {
+                el.checked = !!def;
+                return;
+            }
+            el.value = def;
+        });
+
+        const startDate = document.getElementById('savingsStartDate');
+        if (startDate) {
+            const projectionStart = document.getElementById('startDate')?.value;
+            if (projectionStart) {
+                startDate.value = projectionStart;
+            } else {
+                const now = new Date();
+                startDate.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            }
+        }
+
+        const endDate = document.getElementById('savingsEndDate');
+        if (endDate) endDate.value = '';
+    }
+
+    showAddSavingsForm() {
+        const modal = document.getElementById('addSavingsModal');
+        if (!modal) return;
+        this.ensureSavingsFormFields();
+        this.clearSavingsForm();
+        modal.classList.add('is-open');
+        modal.style.display = 'flex';
+    }
+
+    closeAddSavingsForm() {
+        const modal = document.getElementById('addSavingsModal');
+        if (modal) {
+            modal.classList.remove('is-open');
+            modal.style.display = 'none';
+        }
+    }
+
+    updateSavingsList(accounts) {
+        const savingsList = document.getElementById('savingsList');
+        if (!savingsList) return;
+
+        const ctx = this.getSavingsFieldContext();
+        ctx.surface = 'table';
+
+        renderTable(savingsList, accounts, SAVINGS_FIELDS, {
+            ariaLabel: 'Active savings',
+            rowClass: 'loan-table-row',
+            emptyMessage: 'No savings yet…',
+            ctx,
+            getRowAttrs: (account) =>
+                `tabindex="0" onclick="showSavingsDetail(${account.id})" ` +
+                `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSavingsDetail(${account.id});}"`
+        });
+    }
+
+    showSavingsDetailModal(account) {
+        const modal = document.getElementById('savingsDetailModal');
+        const body = document.getElementById('savingsDetailBody');
+        if (!modal || !body || !account) return;
+
+        const ctx = this.getSavingsFieldContext();
+        ctx.surface = 'detail';
+
+        body.innerHTML = `
+            <div class="sheet-ruled-row sheet-heading" id="savingsDetailHeading">${(account.name && String(account.name).trim()) || 'Savings details'}</div>
+            ${renderDetailRows(SAVINGS_FIELDS, account, ctx)}
+            <div class="sheet-ruled-row loan-detail-actions">
+                <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeSavingsAccount(${account.id})">Remove savings</button>
+                <button type="button" class="sheet-inline-btn" onclick="closeSavingsDetail()">Close</button>
+            </div>
+        `;
+
+        modal.classList.add('is-open');
+        modal.style.display = 'flex';
+        modal.dataset.savingsId = String(account.id);
+    }
+
+    closeSavingsDetailModal() {
+        const modal = document.getElementById('savingsDetailModal');
+        if (modal) {
+            modal.classList.remove('is-open');
+            modal.style.display = 'none';
+            delete modal.dataset.savingsId;
+        }
     }
 
     showLoanDetailModal(loan) {

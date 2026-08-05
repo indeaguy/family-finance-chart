@@ -1,15 +1,16 @@
 /**
- * In-memory loans/overrides store plus JSON import/export and loan payment validation.
- * Defines globals: DataManager, LOAN_FIELDS
+ * In-memory loans/savings/overrides store plus JSON import/export and loan payment validation.
+ * Defines globals: DataManager, LOAN_FIELDS, SAVINGS_FIELDS
  * Depends on: field-model.js (serializeEntity, hydrateEntity); FinanceCalculator (injected);
  *   default_config/example-default-loans.js (DEFAULT_EXAMPLE_DATA);
- *   DOM savings/chart-header fields when exporting (#startDate, #initialAmount,
- *   #monthlySavings, #interestRate, #timePeriod, #goalAmount, #chartTitle, etc.)
- * Owns: loans[], financialOverrides[]; createLoan / addLoan / removeLoan / exportData / importData
- *   loadDefaultExampleIfNeeded (reads DEFAULT_EXAMPLE_DATA from default_config/example-default-loans.js)
+ *   DOM projection/chart-header fields when exporting (#startDate, #timePeriod, #goalAmount,
+ *   #chartTitle, etc.)
+ * Owns: loans[], savingsAccounts[], financialOverrides[]; createLoan / addLoan / removeLoan;
+ *   createSavingsAccount / addSavingsAccount / removeSavingsAccount;
+ *   exportData / importData; loadDefaultExampleIfNeeded (DEFAULT_EXAMPLE_DATA)
  *
- * Field schemas live with their owner store. LOAN_FIELDS drives form/table/detail/JSON via
- * field-model helpers; next entity should add its own *_FIELDS array the same way.
+ * Field schemas live with their owner store. LOAN_FIELDS / SAVINGS_FIELDS drive
+ * form/table/detail/JSON via field-model helpers.
  */
 
 /** @type {Array<object>} */
@@ -197,12 +198,234 @@ const LOAN_FIELDS = [
     }
 ];
 
+/** @type {Array<object>} */
+const SAVINGS_FIELDS = [
+    {
+        key: 'name',
+        label: 'Name',
+        type: 'text',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 0,
+        tableOrder: 0,
+        detailOrder: 0,
+        domId: 'savingsName',
+        formLabel: 'Name',
+        default: '',
+        inputAttrs: { placeholder: 'e.g. Emergency Fund', maxlength: '40' },
+        display: (account) => {
+            const n = account.name && String(account.name).trim();
+            let label = n;
+            if (!label) {
+                const amt = Number(account.amount);
+                if (Number.isFinite(amt) && amt > 0) {
+                    label = '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 });
+                } else {
+                    label = '—';
+                }
+            }
+            // Table has no includeInTotal column — mark spend-apart accounts in the name.
+            if (account.includeInTotal === false) {
+                return label + ' (excl.)';
+            }
+            return label;
+        }
+    },
+    {
+        key: 'amount',
+        label: 'Amount',
+        type: 'currency',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 1,
+        tableOrder: 1,
+        detailOrder: 1,
+        domId: 'savingsAmount',
+        formLabel: 'Initial Amount ($)',
+        default: 10000,
+        inputAttrs: { min: '0' }
+    },
+    {
+        key: 'monthlyContribution',
+        label: 'Mo',
+        type: 'currency',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 2,
+        tableOrder: 2,
+        detailOrder: 2,
+        domId: 'savingsMonthly',
+        formLabel: 'Monthly ($)',
+        default: 500,
+        inputAttrs: { min: '0' },
+        detailLabel: 'Monthly contribution'
+    },
+    {
+        key: 'rate',
+        label: 'Rate',
+        type: 'percent',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 3,
+        tableOrder: 3,
+        detailOrder: 3,
+        domId: 'savingsRate',
+        formLabel: 'Interest Rate (%)',
+        default: 5,
+        inputAttrs: { min: '0', max: '50', step: '0.1' }
+    },
+    {
+        key: 'startDate',
+        label: 'Start',
+        type: 'month',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 4,
+        tableOrder: 4,
+        detailOrder: 4,
+        domId: 'savingsStartDate',
+        formLabel: 'Start Date',
+        default: '',
+        display: (account, ctx) => {
+            const baseDate = ctx && ctx.baseDate ? ctx.baseDate : null;
+            if (account.startDate) {
+                return new Date(account.startDate + '-01').toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short'
+                });
+            }
+            if (!baseDate) return '—';
+            const startDateObj = new Date(baseDate);
+            startDateObj.setMonth(startDateObj.getMonth() + (account.startMonth || 1) - 1);
+            return startDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        }
+    },
+    {
+        key: 'endDate',
+        label: 'End',
+        type: 'month',
+        form: true,
+        table: true,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 5,
+        tableOrder: 5,
+        detailOrder: 5,
+        domId: 'savingsEndDate',
+        formLabel: 'End Date (optional)',
+        default: '',
+        inputAttrs: { },
+        display: (account, ctx) => {
+            if (!account.endDate && (account.endMonth == null || account.endMonth === '')) {
+                return ctx && ctx.surface === 'detail' ? 'None (ongoing)' : '—';
+            }
+            if (account.endDate) {
+                return new Date(account.endDate + '-01').toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short'
+                });
+            }
+            const baseDate = ctx && ctx.baseDate ? ctx.baseDate : null;
+            if (!baseDate || account.endMonth == null) return '—';
+            const endDateObj = new Date(baseDate);
+            endDateObj.setMonth(endDateObj.getMonth() + account.endMonth - 1);
+            return endDateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        },
+        // Empty end date means ongoing — export null rather than ""
+        exportValue: (account) => (account.endDate ? account.endDate : null)
+    },
+    {
+        key: 'includeInTotal',
+        label: 'In total',
+        type: 'boolean',
+        form: true,
+        table: false,
+        detail: true,
+        export: true,
+        import: true,
+        formOrder: 6,
+        detailOrder: 6,
+        domId: 'savingsIncludeInTotal',
+        formLabel: 'Include in Total Savings',
+        default: true,
+        detailLabel: 'Counts toward Total Savings',
+        display: (account) => (account.includeInTotal === false ? 'No' : 'Yes')
+    },
+    {
+        key: 'startMonth',
+        label: 'Start month',
+        type: 'number',
+        form: false,
+        table: false,
+        detail: false,
+        export: true,
+        import: true,
+        default: 1
+    },
+    {
+        key: 'endMonth',
+        label: 'End month',
+        type: 'number',
+        form: false,
+        table: false,
+        detail: false,
+        export: true,
+        import: true,
+        default: null,
+        exportValue: (account) => (account.endMonth != null ? account.endMonth : null)
+    },
+    {
+        key: 'currentBalance',
+        label: 'Balance',
+        type: 'currency',
+        form: false,
+        table: true,
+        detail: true,
+        tableOrder: 6,
+        detailOrder: 7,
+        export: false,
+        import: false,
+        computed: true,
+        compute: (account, ctx) => {
+            if (!ctx || !ctx.calculator) return account.amount;
+            return ctx.calculator.savingsBalanceAsOf(account, ctx.asOfDate || new Date(), ctx.baseDate);
+        }
+    },
+    {
+        key: 'id',
+        label: 'Id',
+        type: 'number',
+        form: false,
+        table: false,
+        detail: false,
+        export: false,
+        import: false
+    }
+];
+
 class DataManager {
     constructor() {
         this.loans = [];
+        this.savingsAccounts = [];
         this.overrides = {};
         this.calculator = null; // Will be injected by app
-        // Once the user imports JSON, never replace loans with the static default example.
+        // Once the user imports JSON, never replace demo data with the static default example.
         this.hasUserImport = false;
     }
     
@@ -211,6 +434,14 @@ class DataManager {
     }
 
     getLoanFieldContext() {
+        return this.getProjectionFieldContext();
+    }
+
+    getSavingsFieldContext() {
+        return this.getProjectionFieldContext();
+    }
+
+    getProjectionFieldContext() {
         const savingsStartDate = document.getElementById('startDate')?.value;
         const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
         return {
@@ -276,6 +507,43 @@ class DataManager {
             isCustomPayment: loanData.isCustomPayment || false
         };
     }
+
+    // Savings account management
+    getSavingsAccounts() {
+        return this.savingsAccounts;
+    }
+
+    getSavingsAccountById(accountId) {
+        return this.savingsAccounts.find(account => account.id === accountId) || null;
+    }
+
+    addSavingsAccount(account) {
+        this.savingsAccounts.push(account);
+    }
+
+    removeSavingsAccount(accountId) {
+        this.savingsAccounts = this.savingsAccounts.filter(account => account.id !== accountId);
+    }
+
+    clearAllSavingsAccounts() {
+        this.savingsAccounts = [];
+    }
+
+    createSavingsAccount(accountData) {
+        const name = accountData.name && String(accountData.name).trim();
+        return {
+            id: Date.now(),
+            name: name || '',
+            amount: accountData.amount,
+            monthlyContribution: accountData.monthlyContribution || 0,
+            rate: accountData.rate || 0,
+            startMonth: accountData.startMonth || 1,
+            startDate: accountData.startDate || '',
+            endMonth: accountData.endMonth != null ? accountData.endMonth : null,
+            endDate: accountData.endDate || '',
+            includeInTotal: accountData.includeInTotal !== false
+        };
+    }
     
     // Override Management
     getOverrides() {
@@ -301,13 +569,11 @@ class DataManager {
     exportData() {
         return {
             savings: {
-                startDate: document.getElementById('startDate').value,
-                initialAmount: parseFloat(document.getElementById('initialAmount').value) || 0,
-                monthlySavings: parseFloat(document.getElementById('monthlySavings').value) || 0,
-                interestRate: parseFloat(document.getElementById('interestRate').value) || 0,
-                timePeriod: parseInt(document.getElementById('timePeriod').value) || 1,
-                goalAmount: parseFloat(document.getElementById('goalAmount').value) || 0,
-                financialOverrides: this.overrides
+                startDate: document.getElementById('startDate')?.value || '',
+                timePeriod: parseInt(document.getElementById('timePeriod')?.value, 10) || 1,
+                goalAmount: parseFloat(document.getElementById('goalAmount')?.value) || 0,
+                financialOverrides: this.overrides,
+                accounts: this.savingsAccounts.map(account => serializeEntity(account, SAVINGS_FIELDS))
             },
             chartHeader: {
                 title: document.getElementById('chartTitle')?.value || 'Family Finance Growth',
@@ -341,15 +607,20 @@ class DataManager {
     }
 
     /**
-     * Load demo loans from DEFAULT_EXAMPLE_DATA (default_config/example-default-loans.js)
+     * Load demo loans/savings from DEFAULT_EXAMPLE_DATA (default_config/example-default-loans.js)
      * when the user has not imported their own file. Requires calculator injected first.
      */
     loadDefaultExampleIfNeeded() {
         if (this.hasUserImport) return false;
 
         const data = typeof DEFAULT_EXAMPLE_DATA !== 'undefined' ? DEFAULT_EXAMPLE_DATA : null;
-        if (!data || !Array.isArray(data.loans)) {
-            console.warn('Could not load default example loans: DEFAULT_EXAMPLE_DATA missing');
+        const hasLoans = data && Array.isArray(data.loans);
+        const hasAccounts = data && (
+            (data.savings && Array.isArray(data.savings.accounts)) ||
+            Array.isArray(data.savingsAccounts)
+        );
+        if (!data || (!hasLoans && !hasAccounts)) {
+            console.warn('Could not load default example data: DEFAULT_EXAMPLE_DATA missing');
             return false;
         }
 
@@ -359,7 +630,10 @@ class DataManager {
     
     loadDataFromJSON(data) {
         try {
-            // Load savings data
+            const savingsStartDate = document.getElementById('startDate')?.value;
+            const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
+
+            // Load savings projection meta + accounts
             if (data.savings) {
                 // Load financial overrides with backward compatibility
                 this.overrides = data.savings.financialOverrides || 
@@ -376,12 +650,35 @@ class DataManager {
                     }
                 });
             }
+
+            const accountSource = (data.savings && Array.isArray(data.savings.accounts))
+                ? data.savings.accounts
+                : (Array.isArray(data.savingsAccounts) ? data.savingsAccounts : null);
+
+            if (accountSource) {
+                this.savingsAccounts = accountSource.map((accountData, index) =>
+                    this.hydrateSavingsAccount(accountData, index, baseDate)
+                );
+            } else if (data.savings && (
+                data.savings.initialAmount != null ||
+                data.savings.monthlySavings != null ||
+                data.savings.interestRate != null
+            )) {
+                // Legacy singular savings form → one account
+                this.savingsAccounts = [this.hydrateSavingsAccount({
+                    name: 'Savings',
+                    amount: data.savings.initialAmount || 0,
+                    monthlyContribution: data.savings.monthlySavings || 0,
+                    rate: data.savings.interestRate || 0,
+                    startMonth: 1,
+                    startDate: data.savings.startDate || '',
+                    endDate: null,
+                    endMonth: null
+                }, 0, baseDate)];
+            }
             
             // Load loans data
             if (data.loans && Array.isArray(data.loans)) {
-                const savingsStartDate = document.getElementById('startDate').value;
-                const baseDate = savingsStartDate ? new Date(savingsStartDate + '-01') : new Date();
-                
                 this.loans = data.loans.map((loanData, index) => {
                     const hydrated = hydrateEntity(loanData, LOAN_FIELDS);
 
@@ -426,6 +723,45 @@ class DataManager {
             console.error('Error loading data:', error);
             throw error;
         }
+    }
+
+    hydrateSavingsAccount(accountData, index, baseDate) {
+        const hydrated = hydrateEntity(accountData, SAVINGS_FIELDS);
+        let startDate = hydrated.startDate || '';
+        let startMonth = hydrated.startMonth || 1;
+        let endDate = hydrated.endDate || '';
+        let endMonth = hydrated.endMonth != null ? hydrated.endMonth : null;
+
+        if (!startDate && startMonth) {
+            const calculatedDate = new Date(baseDate);
+            calculatedDate.setMonth(calculatedDate.getMonth() + startMonth - 1);
+            startDate = calculatedDate.toISOString().slice(0, 7);
+        }
+
+        if (!endDate && endMonth != null) {
+            const calculatedDate = new Date(baseDate);
+            calculatedDate.setMonth(calculatedDate.getMonth() + endMonth - 1);
+            endDate = calculatedDate.toISOString().slice(0, 7);
+        }
+
+        if (endDate && (endMonth == null)) {
+            endMonth = this.calculateStartMonth(endDate, baseDate);
+        }
+
+        const name = hydrated.name && String(hydrated.name).trim();
+
+        return {
+            id: Date.now() + index,
+            name: name || '',
+            amount: hydrated.amount || 0,
+            monthlyContribution: hydrated.monthlyContribution || 0,
+            rate: hydrated.rate || 0,
+            startMonth,
+            startDate,
+            endMonth,
+            endDate,
+            includeInTotal: hydrated.includeInTotal !== false
+        };
     }
     
     // Utility methods

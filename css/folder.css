@@ -484,6 +484,8 @@
 
 .loans-table > .sheet-ruled-row {
     display: grid;
+    /* Loans: Name Amount Rate Term Pay Start Balance (7)
+       Savings: Name Amount Mo Rate Start End Balance (7) — same template */
     grid-template-columns: 1.1fr 0.95fr 0.55fr 0.5fr 0.75fr 0.85fr 0.95fr;
     align-items: end;
     column-gap: 4px;

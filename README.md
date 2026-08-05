@@ -4,37 +4,34 @@ A simple web application to visualize financial growth over time, including comp
 
 ## Features
 
-- **Compound Interest Calculation**: See how your savings grow with compound interest
-- **Monthly Savings**: Add regular monthly contributions
+- **Multi-account Savings**: Add savings accounts with their own balances, contributions, and rates
+- **Compound Interest**: Each account grows independently; totals sum into Total Savings
+- **Optional End Dates**: Accounts with an end date freeze at that balance but still count toward the total afterward
 - **Loan Management**: Add multiple loans with different terms and rates
 - **Interactive Charts**: Powered by TradingView's Lightweight Charts library
-- **Real-time Updates**: Charts update automatically as you change inputs
+- **Real-time Updates**: Charts update as you add or remove accounts and loans
 - **Financial Summary**: Key metrics displayed in easy-to-read cards
-- **Goal Setting**: Set financial goals with visual indicators
 - **JSON Import/Export**: Save and load financial scenarios
 
 ## How to Use
 
 ### Basic Usage
 1. Open `index.html` in your web browser
-2. Adjust the savings and interest parameters:
-   - Initial Amount: Your starting savings
-   - Monthly Savings: How much you save each month
-   - Annual Interest Rate: Expected return on your savings
-   - Time Period: How many years to project
-   - Goal Amount: Optional target amount (chart stops when reached)
-
-3. Open the drawer and use the **Loans** folder (manila):
-   - Click the rolling pencil **Add Loan** button at the bottom of the folder to open the loose-leaf form
-   - Active loans fill the sheet as ruled rows — click a row for details / Remove
-   - Scroll over the folder to raise the loose-leaf when loan rows are clipped
-   - Switch to the green **Savings** folder tab (sheet content coming later)
+2. Open the drawer and use the green **Savings** folder tab:
+   - Click the rolling pencil **Add Savings** button to open the loose-leaf form
+   - Fields: name, initial amount, monthly contribution, interest rate, start date, optional end date, and whether it counts toward Total Savings
+   - Uncheck **Include in Total Savings** for earmarked spend (vacation, gifts) — the line still charts, but stays out of the total
+   - Active savings fill the sheet as ruled rows — click a row for details / Remove; excluded accounts show `(excl.)` in the name
+3. Switch to the manila **Loans** folder tab:
+   - Pencil becomes **Add Loan**; active loans use the same ruled-row sheet pattern
+   - Scroll over the folder to raise the loose-leaf when rows are clipped
 
 4. The chart will show multiple lines:
-   - **Green**: Total Savings (with compound growth)
+   - **Teal dotted**: Individual savings accounts (sum to Total Savings)
+   - **Green**: Total Savings
    - **Blue**: Net Worth (savings minus loan balances)
-   - **Red**: Total Loan Balance (decreases as you pay off loans)
-   - **Orange Dashed**: Goal line (if goal amount is set)
+   - **Red dotted / solid**: Individual loans and Total Loan Balance
+   - **Orange Dashed**: Goal line (if goal amount is set in imported JSON)
 
 ### JSON Import/Export
 
@@ -47,13 +44,9 @@ A simple web application to visualize financial growth over time, including comp
 - All settings and loans will be restored
 
 #### Try the Example
-- With no import yet, the app loads demo loans from `js/default_config/example-default-loans.js`
-- Import `example.json` for a full sample scenario with:
-  - $25,000 initial savings
-  - $1,200 monthly savings
-  - 8.5% annual interest rate
-  - $1,000,000 goal
-  - Three loans: mortgage, car loan (with extra payments), and credit card
+- With no import yet, the app loads demo savings accounts and loans from `js/default_config/example-default-loans.js`
+- Older JSON files that still use a single `savings.initialAmount` / `monthlySavings` / `interestRate` block are imported as one savings account
+- Import `example.json` for a sample scenario (legacy singular savings + three loans)
 
 ## Chart Features
 

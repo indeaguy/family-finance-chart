@@ -9,10 +9,10 @@ Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional
 | Chart series, markers, hover, resize | `js/chart-manager.js` |
 | Compound interest / loan amortization math | `js/calculator.js` |
 | Field schema helpers (form/table/export) | `js/field-model.js` |
-| Default demo loans (no user import) | `js/default_config/` |
-| Loans/overrides store, JSON import/export, `LOAN_FIELDS` | `js/data-manager.js` |
-| Forms, loans list, loan modals, download | `js/ui-manager.js` |
-| Field-model / loan schema / remaining-balance unit tests | `tests/field-model.mjs` (`npm run test:unit`) |
+| Default demo loans + savings (no user import) | `js/default_config/` |
+| Loans/savings/overrides store, JSON import/export, `LOAN_FIELDS` / `SAVINGS_FIELDS` | `js/data-manager.js` |
+| Forms, loans/savings lists, loan/savings modals, download | `js/ui-manager.js` |
+| Field-model / loan+savings schema / balance-as-of unit tests | `tests/field-model.mjs` (`npm run test:unit`) |
 | Loose-leaf line/text alignment regression | `tests/loose-leaf-alignment.mjs` (`npm run test:ui`) |
 | Net-worth override modal | `js/override-manager.js` |
 | Wire-up, lifecycle, HTML onclick globals | `js/app.js` |
@@ -70,12 +70,12 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 
 ### Core app modules
 
-- **`js/calculator.js`** — `FinanceCalculator`: growth, amortization, overrides → chart data; `remainingBalanceAsOf` for single-loan balance through a date.
-- **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total loan balance plus per-loan balance lines (`INDIVIDUAL_LOAN_LINES` config at top of file); hover right-axis labels are stacked DOM rows (`title` + amount + interest; savings → earned, others → paid / per-loan paid).
+- **`js/calculator.js`** — `FinanceCalculator`: multi-account savings growth (end-date freeze), loan amortization, overrides → chart data; `remainingBalanceAsOf` / `savingsBalanceAsOf` for single-entity balance through a date. Total Savings = sum of account balances (loan payments do not reduce savings).
+- **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total savings + per-account savings lines (`INDIVIDUAL_SAVINGS_LINES`), total loan balance + per-loan lines (`INDIVIDUAL_LOAN_LINES`); hover right-axis labels are stacked DOM rows (`title` + amount + interest; savings → earned, loans → paid).
 - **`js/field-model.js`** — Reusable field-schema helpers: filter/format/serialize/hydrate and render form/table/detail from a `*_FIELDS` array. Entity-agnostic; schemas live with their owner store.
-- **`js/default_config/example-default-loans.js`** — `DEFAULT_EXAMPLE_DATA` demo loans applied on load when the user has not imported JSON (script tag; works with `file://`).
-- **`js/data-manager.js`** — `DataManager`: loans, overrides, import/export; owns `LOAN_FIELDS` (drives add-loan form, loans table, detail rows, loan JSON shape); applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`.
-- **`js/ui-manager.js`** — `UIManager`: forms, loans list, loan modals, JSON download (loan UI generated from `LOAN_FIELDS`).
+- **`js/default_config/example-default-loans.js`** — `DEFAULT_EXAMPLE_DATA` demo loans + savings accounts applied on load when the user has not imported JSON (script tag; works with `file://`).
+- **`js/data-manager.js`** — `DataManager`: loans, savings accounts, overrides, import/export; owns `LOAN_FIELDS` and `SAVINGS_FIELDS`; applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`. Legacy singular `savings.initialAmount` / `monthlySavings` / `interestRate` imports become one account.
+- **`js/ui-manager.js`** — `UIManager`: forms, loans/savings lists, loan/savings modals, JSON download (UI generated from `*_FIELDS`).
 - **`js/override-manager.js`** — `OverrideManager`: dual savings + loan-balance overrides.
 - **`js/app.js`** — `FinanceApp` + onclick globals; dependency injection hub.
 
@@ -84,11 +84,12 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 | Owner | Ids / regions |
 |-------|----------------|
 | Drawer | `#drawer`, `#drawerTopRef`, `.drawer-handle`, `.drawer-desk-layer` (pencil/pin/eraser) |
-| Folder | `#loansSavingsFolder`, `#folderSheetLoans`, `#folderSheetSavings`, `#loansList`, `#addLoanPencilBtn` |
-| Savings form | `#startDate`, `#initialAmount`, `#monthlySavings`, `#interestRate`, `#timePeriod`, `#goalAmount` |
+| Folder | `#loansSavingsFolder`, `#folderSheetLoans`, `#folderSheetSavings`, `#loansList`, `#savingsList`, `#addLoanPencilBtn` |
+| Projection (hidden) | `#startDate`, `#timePeriod`, `#goalAmount` — chart timeline; former Savings & Interest form shell left in place without visible fields |
 | Chart | `#chart`, `#chartOverlay`, `.chart-header` |
 | Summary | `#summaryOverlay`, `#summaryOverlayContent` |
 | Loan modals | `#addLoanModal`, `#addLoanFormFields`, `#loanDetailModal`, `#loanDetailBody`; loan inputs (`#loanAmount`, etc.) are generated into `#addLoanFormFields` from `LOAN_FIELDS` |
+| Savings modals | `#addSavingsModal`, `#addSavingsFormFields`, `#savingsDetailModal`, `#savingsDetailBody`; savings inputs generated from `SAVINGS_FIELDS` |
 | Overrides | `#netWorthOverridesModal`, `#netWorthOverridesList`, `#overrideDate`, `#overrideSavings`, `#overrideLoanBalance` |
 | Chart header modal | `#chartHeaderModal`, `#chartTitle`, `#chartSubtitle`, `#chartHeaderBg`, `#chartHeaderPos`, `#chartHeaderVisible` |
 | Import | `#jsonFileInput` |
@@ -97,18 +98,20 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 
 Do not “fix” these in drive-by refactors; document and keep in sync:
 
-1. **`updateSummaryOverlay`** (`summary-overlay.js`) duplicates compound-interest math from `calculator.js` and reads `window.app.dataManager` for loan totals. Formula changes need both places.
-2. **`app.js`** calls global **`resetFolderSheetRaise()`** after loan list changes so the folder pocket stays correct.
+1. **`updateSummaryOverlay`** (`summary-overlay.js`) prefers `window.app.calculator.calculateFinancialGrowth()` so multi-account totals stay aligned with the chart.
+2. **`app.js`** calls global **`resetFolderSheetRaise()`** after loan or savings list changes so the folder pocket stays correct.
 3. **`chart-manager.js`** calls **`window.showChartHover`** (from `summary-overlay.js`) on crosshair move.
-4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, loan modals, and overrides (via `app.js` globals).
+4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, loan/savings modals, and overrides (via `app.js` globals).
 5. **`UIManager.formatCurrency`** is separate from the global `formatCurrency` in `format.js` — same idea, two call sites.
+6. **Savings end date:** after `endMonth` / `endDate`, an account freezes at that month’s balance but still adds that frozen value to Total Savings for the rest of the chart (when `includeInTotal` is true).
+7. **Savings `includeInTotal`:** when false, the account still gets its own chart line but is omitted from Total Savings / net worth (earmarked spend such as vacation).
 
 ## Loose-leaf line grid invariant (load-bearing)
 
 Ruled paper uses a repeating background stepped by `--leaf-line` (28px). Every `.sheet-ruled-row` on that sheet must occupy exactly one step — top offset `n * --leaf-line` from the sheet top.
 
-- Do **not** render the loans list as a `<table>` / `<tr>`: table rows ignore `max-height` and grow (~33px), so text drifts off the blue lines.
-- Keep loans as `div.sheet-ruled-row` children inside `.loans-table` (CSS grid columns) in `ui-manager.js` + `css/folder.css`.
+- Do **not** render the loans or savings lists as a `<table>` / `<tr>`: table rows ignore `max-height` and grow (~33px), so text drifts off the blue lines.
+- Keep loans and savings as `div.sheet-ruled-row` children inside `.loans-table` (CSS grid columns) in `ui-manager.js` + `css/folder.css`.
 - Guard: `npm run test:ui` → `tests/loose-leaf-alignment.mjs` (needs Chrome, or `CHROME_PATH`).
 
 ## Handle animation invariants (load-bearing)
@@ -123,29 +126,29 @@ Implementation lives in `js/drawer.js` with styles in `css/drawer.css`.
 
 ## Field schemas (reusable pattern)
 
-- Declare a `*_FIELDS` array on the owner store (loans → `LOAN_FIELDS` in `data-manager.js`).
+- Declare a `*_FIELDS` array on the owner store (`LOAN_FIELDS` / `SAVINGS_FIELDS` in `data-manager.js`).
 - Each field: `key`, `label`, `type`, surface flags (`form` / `table` / `detail` / `export` / `import`), optional `domId`, `default`, `formOrder` / `tableOrder` / `detailOrder`, `computed` + `compute(entity, ctx)`, `exportValue`, `display`.
-- Computed fields (e.g. loan `remainingBalance` as of today) must not be form/export/import; resolve at render via `compute` and `ctx.calculator`.
+- Computed fields (e.g. loan `remainingBalance`, savings `currentBalance` as of today) must not be form/export/import; resolve at render via `compute` and `ctx.calculator`.
 - Use `field-model.js` helpers for serialize/hydrate/render — do not hardcode parallel column/form lists in the UI.
-- Next entity (savings, overrides, …): add its `*_FIELDS` + wire the same helpers; do not fork loan-only render paths.
+- Next entity (overrides, …): add its `*_FIELDS` + wire the same helpers; do not fork entity-only render paths.
 - When adding or changing a schema / computed field / export shape: extend `tests/field-model.mjs` (or a sibling unit file) and run `npm run test:unit` before considering the change done.
 
 ## Tests (verify changes here)
 
 | Command | What | Needs Chrome |
 |---------|------|--------------|
-| `npm run test:unit` | `tests/field-model.mjs` — field-model helpers, `LOAN_FIELDS` surfaces/order, serialize/hydrate, `remainingBalanceAsOf`, form render | No |
+| `npm run test:unit` | `tests/field-model.mjs` — field-model helpers, `LOAN_FIELDS` / `SAVINGS_FIELDS` surfaces/order, serialize/hydrate, `remainingBalanceAsOf`, `savingsBalanceAsOf`, form render | No |
 | `npm run test:ui` | `tests/loose-leaf-alignment.mjs` — loans loose-leaf row grid | Yes (`CHROME_PATH` if needed) |
 | `npm test` | Both suites via `tests/run.mjs` | Yes (for the UI suite) |
 
 **When to run what**
 
-- Changing `js/field-model.js`, `LOAN_FIELDS`, loan JSON import/export, or `remainingBalanceAsOf` → **must** pass `npm run test:unit` (prefer full `npm test`).
-- Changing loans table markup/CSS, folder loose-leaf rows, or `updateLoansList` layout → **must** pass `npm run test:ui`.
+- Changing `js/field-model.js`, `LOAN_FIELDS` / `SAVINGS_FIELDS`, loan/savings JSON import/export, `remainingBalanceAsOf`, or `savingsBalanceAsOf` → **must** pass `npm run test:unit` (prefer full `npm test`).
+- Changing loans/savings table markup/CSS, folder loose-leaf rows, or `updateLoansList` / `updateSavingsList` layout → **must** pass `npm run test:ui`.
 - Adding a new `*_FIELDS` entity → add assertions (surfaces, export keys, computed flags) alongside the schema; wire the new file into `tests/run.mjs` if it is a separate suite.
 - Shared loader for classic scripts in Node: `tests/helpers/load-browser-scripts.mjs`.
 
-Do not land field-schema or amortization changes that fail the unit suite; do not land loans-list layout changes that fail the UI suite.
+Do not land field-schema or amortization/savings-growth changes that fail the unit suite; do not land loans/savings-list layout changes that fail the UI suite.
 
 ## Development notes
 
@@ -153,5 +156,5 @@ Do not land field-schema or amortization changes that fail the unit suite; do no
 - Prefer extending an existing file over inventing a new module unless the concern is clearly new.
 - Keep backward compatibility for old JSON override shapes (`data-manager.js` / `calculator.js`).
 - Example scenarios: `example.json` and `example-*.json` in the repo root.
-- Default loans (no user import yet): `js/default_config/example-default-loans.js` → `DEFAULT_EXAMPLE_DATA`, applied by `DataManager.loadDefaultExampleIfNeeded()` after calculator injection. Import sets `hasUserImport` so user JSON wins.
+- Default loans + savings (no user import yet): `js/default_config/example-default-loans.js` → `DEFAULT_EXAMPLE_DATA`, applied by `DataManager.loadDefaultExampleIfNeeded()` after calculator injection. Import sets `hasUserImport` so user JSON wins.
 - After substantive edits, run the matching tests above (`npm test` when unsure).

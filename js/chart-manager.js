@@ -1,6 +1,6 @@
 /**
  * LightweightCharts setup: series (savings, net worth, loans, goal), markers, hover, resize.
- * Defines globals: ChartManager, INDIVIDUAL_LOAN_LINES
+ * Defines globals: ChartManager, INDIVIDUAL_LOAN_LINES, INDIVIDUAL_SAVINGS_LINES
  * Depends on: window.LightweightCharts; format.js (formatCurrency); summary-overlay.js
  *   (window.showChartHover on crosshair); DOM: #chart container (passed into createChart).
  * Hover right-axis labels are DOM (title + amount + interest) with collision stacking —
@@ -9,6 +9,16 @@
 
 /** Per-loan balance line styling — edit here (not exposed in UI). */
 const INDIVIDUAL_LOAN_LINES = {
+    enabled: true,
+    lineWidth: 1,
+    lineStyle: LightweightCharts.LineStyle.Dotted,
+    showLegendTitle: true,
+    priceLineVisible: false,
+    lastValueVisible: false
+};
+
+/** Per-savings-account line styling — edit here (not exposed in UI). */
+const INDIVIDUAL_SAVINGS_LINES = {
     enabled: true,
     lineWidth: 1,
     lineStyle: LightweightCharts.LineStyle.Dotted,
@@ -32,6 +42,7 @@ class ChartManager {
             netWorthOriginal: null,
             loanBalance: null,
             individualLoans: [],
+            individualSavings: [],
             goalLine: null
         };
 
@@ -40,6 +51,13 @@ class ChartManager {
             '#ffab91', '#f48fb1', '#ec407a', '#ce93d8', '#ab47bc',
             '#b39ddb', '#9575cd', '#7986cb', '#64b5f6', '#4dd0e1',
             '#80cbc4', '#a5d6a7', '#c5e1a5', '#fff59d', '#ffcc80'
+        ];
+
+        this.individualSavingsColors = [
+            '#80cbc4', '#4db6ac', '#26a69a', '#009688', '#00897b',
+            '#66bb6a', '#81c784', '#a5d6a7', '#9ccc65', '#c5e1a5',
+            '#4dd0e1', '#26c6da', '#00acc1', '#4fc3f7', '#29b6f6',
+            '#7e57c2', '#9575cd', '#b39ddb', '#7986cb', '#64b5f6'
         ];
 
         /** @type {Map<object, string>} series API -> label shown on hover only */
@@ -180,6 +198,7 @@ class ChartManager {
         if (this.chartSeries.netWorthOriginal) series.push(this.chartSeries.netWorthOriginal);
         if (this.chartSeries.loanBalance) series.push(this.chartSeries.loanBalance);
         if (this.chartSeries.goalLine) series.push(this.chartSeries.goalLine);
+        series.push(...this.chartSeries.individualSavings);
         series.push(...this.chartSeries.individualLoans);
         return series;
     }
@@ -190,14 +209,17 @@ class ChartManager {
         }
     }
 
-    /** Store per-timestamp interest for a series (LC strips custom fields from setData). */
-    registerSeriesInterestByTime(series, points) {
+    /**
+     * Store per-timestamp interest for a series (LC strips custom fields from setData).
+     * @param {string} [interestKey='interestPaid'] — use interestEarned for savings accounts
+     */
+    registerSeriesInterestByTime(series, points, interestKey = 'interestPaid') {
         if (!series || !points) return;
         const byTime = new Map();
         for (const point of points) {
-            if (point.time == null || point.interestPaid == null) continue;
-            if (!Number.isFinite(point.interestPaid)) continue;
-            byTime.set(point.time, point.interestPaid);
+            if (point.time == null || point[interestKey] == null) continue;
+            if (!Number.isFinite(point[interestKey])) continue;
+            byTime.set(point.time, point[interestKey]);
         }
         this.seriesInterestByTime.set(series, byTime);
     }
@@ -210,7 +232,7 @@ class ChartManager {
 
     /**
      * Interest companion for a hover axis row.
-     * Savings → earned; loans / net worth / goal → paid (per-loan when available).
+     * Savings (total + per-account) → earned; loans / net worth / goal → paid.
      */
     resolveInterestForSeries(series, dataPoint, time) {
         if (!dataPoint) return null;
@@ -221,9 +243,13 @@ class ChartManager {
                 : null;
         }
 
-        const perLoan = this.seriesInterestByTime.get(series);
-        if (perLoan && perLoan.has(time)) {
-            return { value: perLoan.get(time), tip: 'Interest paid' };
+        const perSeries = this.seriesInterestByTime.get(series);
+        if (perSeries && perSeries.has(time)) {
+            const isSavingsAccount = this.chartSeries.individualSavings.includes(series);
+            return {
+                value: perSeries.get(time),
+                tip: isSavingsAccount ? 'Interest earned' : 'Interest paid'
+            };
         }
 
         if (
@@ -328,7 +354,8 @@ class ChartManager {
             // Clear existing series
             this.clearSeries(chart);
             
-            // Add new series
+            // Add new series (individuals under totals so totals paint on top)
+            this.addIndividualSavingsLines(chart, results);
             this.addSavingsLine(chart, results);
             this.addNetWorthLine(chart, results);
             this.addIndividualLoanLines(chart, results);
@@ -384,7 +411,7 @@ class ChartManager {
             if (cfg.showLegendTitle) {
                 this.registerSeriesDisplayName(lineSeries, series.name);
             }
-            this.registerSeriesInterestByTime(lineSeries, series.data);
+            this.registerSeriesInterestByTime(lineSeries, series.data, 'interestPaid');
             // LC only needs time/value; interestPaid is kept in seriesInterestByTime.
             lineSeries.setData(series.data.map((point) => ({
                 time: point.time,
@@ -393,8 +420,41 @@ class ChartManager {
             this.chartSeries.individualLoans.push(lineSeries);
         });
     }
+
+    addIndividualSavingsLines(chart, results) {
+        const cfg = INDIVIDUAL_SAVINGS_LINES;
+        if (!cfg.enabled || !results.individualSavingsSeries || results.individualSavingsSeries.length === 0) {
+            return;
+        }
+
+        results.individualSavingsSeries.forEach((series, index) => {
+            if (!series.data || series.data.length === 0) return;
+
+            const color = this.individualSavingsColors[index % this.individualSavingsColors.length];
+            const lineSeries = chart.addLineSeries({
+                color,
+                lineWidth: cfg.lineWidth,
+                lineStyle: cfg.lineStyle,
+                title: '',
+                priceLineVisible: cfg.priceLineVisible,
+                lastValueVisible: cfg.lastValueVisible
+            });
+            if (cfg.showLegendTitle) {
+                this.registerSeriesDisplayName(lineSeries, series.name);
+            }
+            this.registerSeriesInterestByTime(lineSeries, series.data, 'interestEarned');
+            lineSeries.setData(series.data.map((point) => ({
+                time: point.time,
+                value: point.value
+            })));
+            this.chartSeries.individualSavings.push(lineSeries);
+        });
+    }
     
     addSavingsLine(chart, results) {
+        if (!results.savingsData || results.savingsData.length === 0) {
+            return;
+        }
         this.chartSeries.savings = chart.addLineSeries({
             color: '#26a69a',
             lineWidth: 3,

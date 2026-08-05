@@ -80,6 +80,8 @@ async function main() {
 
         await page.evaluate((loans) => {
             if (typeof openDrawer === 'function') openDrawer();
+            // Savings sheet is active by default; loans sheet is [hidden] until switched.
+            if (typeof switchFolderSheet === 'function') switchFolderSheet('loans');
             window.app.uiManager.updateLoansList(loans);
         }, SAMPLE_LOANS);
 

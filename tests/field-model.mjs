@@ -1,6 +1,7 @@
 /**
- * Unit tests for field-model helpers, LOAN_FIELDS surfaces, JSON serialize/hydrate,
- * and FinanceCalculator.remainingBalanceAsOf.
+ * Unit tests for field-model helpers, LOAN_FIELDS / SAVINGS_FIELDS surfaces,
+ * JSON serialize/hydrate, FinanceCalculator.remainingBalanceAsOf, and
+ * savingsBalanceAsOf (including end-date freeze).
  *
  * Run: npm run test:unit  (or npm test)
  * No Chrome required.
@@ -15,6 +16,7 @@ const {
     hydrateEntity,
     renderFormFields,
     LOAN_FIELDS,
+    SAVINGS_FIELDS,
     FinanceCalculator,
 } = loadBrowserScripts(
     ['js/field-model.js', 'js/calculator.js', 'js/data-manager.js'],
@@ -26,6 +28,7 @@ const {
         'hydrateEntity',
         'renderFormFields',
         'LOAN_FIELDS',
+        'SAVINGS_FIELDS',
         'FinanceCalculator',
     ]
 );
@@ -216,6 +219,162 @@ assert(!container.innerHTML.includes('remainingBalance'), 'form does not render 
 assert(
     (container.innerHTML.match(/sheet-ruled-row input-row/g) || []).length === 6,
     'form renders six input rows'
+);
+
+// --- SAVINGS_FIELDS surfaces / order ---
+
+assert(Array.isArray(SAVINGS_FIELDS) && SAVINGS_FIELDS.length > 0, 'SAVINGS_FIELDS loaded');
+
+assertEqual(
+    filterFields(SAVINGS_FIELDS, 'table').map((f) => f.key),
+    ['name', 'amount', 'monthlyContribution', 'rate', 'startDate', 'endDate', 'currentBalance'],
+    'savings table column order'
+);
+
+assertEqual(
+    filterFields(SAVINGS_FIELDS, 'form').map((f) => f.key),
+    ['name', 'amount', 'monthlyContribution', 'rate', 'startDate', 'endDate', 'includeInTotal'],
+    'savings form field order'
+);
+
+const currentBalanceField = SAVINGS_FIELDS.find((f) => f.key === 'currentBalance');
+assert(currentBalanceField?.computed === true, 'currentBalance is computed');
+assert(!currentBalanceField.form && !currentBalanceField.export && !currentBalanceField.import,
+    'currentBalance must not be form/export/import');
+
+for (const field of SAVINGS_FIELDS) {
+    if (field.computed) {
+        assert(!field.form && !field.export && !field.import,
+            `computed field ${field.key} must not be form/export/import`);
+    }
+}
+
+const sampleSavings = {
+    id: 7,
+    name: 'Emergency Fund',
+    amount: 10000,
+    monthlyContribution: 200,
+    rate: 6,
+    startMonth: 1,
+    startDate: '2024-01',
+    endMonth: null,
+    endDate: '',
+    includeInTotal: true,
+};
+
+const exportedSavings = serializeEntity(sampleSavings, SAVINGS_FIELDS);
+assertEqual(exportedSavings.endDate, null, 'export null endDate when ongoing');
+assertEqual(exportedSavings.endMonth, null, 'export null endMonth when ongoing');
+assertEqual(exportedSavings.includeInTotal, true, 'export includeInTotal');
+assert(!Object.prototype.hasOwnProperty.call(exportedSavings, 'currentBalance'),
+    'export omits currentBalance');
+assert(!Object.prototype.hasOwnProperty.call(exportedSavings, 'id'), 'export omits savings id');
+assertEqual(
+    Object.keys(exportedSavings).sort(),
+    ['amount', 'endDate', 'endMonth', 'includeInTotal', 'monthlyContribution', 'name', 'rate', 'startDate', 'startMonth'].sort(),
+    'savings export key set'
+);
+
+const excludedExported = serializeEntity(
+    { ...sampleSavings, includeInTotal: false },
+    SAVINGS_FIELDS
+);
+assertEqual(excludedExported.includeInTotal, false, 'export includeInTotal false');
+
+const hydratedSavings = hydrateEntity(
+    {
+        name: 'Brokerage',
+        amount: 5000,
+        monthlyContribution: 100,
+        rate: 8,
+        startDate: '2025-01',
+        startMonth: 1,
+        endDate: '2026-01',
+        endMonth: 13,
+    },
+    SAVINGS_FIELDS
+);
+assertEqual(hydratedSavings.amount, 5000, 'hydrate savings amount');
+assertEqual(hydratedSavings.endMonth, 13, 'hydrate savings endMonth');
+assert(!Object.prototype.hasOwnProperty.call(hydratedSavings, 'currentBalance'),
+    'hydrate skips computed currentBalance');
+
+// --- savingsBalanceAsOf ---
+
+const zeroRateSavings = calc.savingsBalanceAsOf(
+    { amount: 1000, monthlyContribution: 100, rate: 0, startDate: '2026-01' },
+    new Date(2026, 2, 15) // March 2026 → 3 growth months (Jan, Feb, Mar)
+);
+// month1: 1100, month2: 1200, month3: 1300
+assertClose(zeroRateSavings, 1300, 'zero-rate savings after 3 months');
+
+const futureSavings = calc.savingsBalanceAsOf(
+    { amount: 5000, monthlyContribution: 100, rate: 5, startDate: '2030-01' },
+    new Date(2026, 6, 15)
+);
+assertEqual(futureSavings, 5000, 'future-start savings balance equals amount');
+
+const frozenAtEnd = calc.savingsBalanceAsOf(
+    {
+        amount: 1000,
+        monthlyContribution: 100,
+        rate: 0,
+        startDate: '2026-01',
+        endDate: '2026-02',
+    },
+    new Date(2026, 5, 15) // June — past end
+);
+// Jan: 1100, Feb: 1200, then freeze
+assertClose(frozenAtEnd, 1200, 'savings freezes at endDate balance');
+
+const ongoingPastFreezePoint = calc.savingsBalanceAsOf(
+    {
+        amount: 1000,
+        monthlyContribution: 100,
+        rate: 0,
+        startDate: '2026-01',
+    },
+    new Date(2026, 5, 15)
+);
+assertClose(ongoingPastFreezePoint, 1600, 'ongoing savings keeps growing past where freeze would be');
+
+{
+    const states = [
+        {
+            amount: 1000, monthlyContribution: 0, rate: 0, startMonth: 1, includeInTotal: true,
+            balance: 0, started: false, endMonth: null, cumulativeInterest: 0, cumulativeContributions: 0
+        },
+        {
+            amount: 500, monthlyContribution: 0, rate: 0, startMonth: 1, includeInTotal: false,
+            balance: 0, started: false, endMonth: null, cumulativeInterest: 0, cumulativeContributions: 0
+        },
+    ];
+    const step = calc.calculateSavingsBalances(states, 1);
+    assertClose(step.totalBalance, 1000, 'includeInTotal false omitted from total');
+    assertClose(states[1].balance, 500, 'excluded account still tracks its own balance');
+}
+
+const balanceViaSavingsSchema = getFieldDisplayValue(currentBalanceField, sampleSavings, {
+    calculator: calc,
+    asOfDate: new Date('2024-01-15'),
+    baseDate: new Date('2024-01-01'),
+});
+assert(
+    typeof balanceViaSavingsSchema === 'string' && balanceViaSavingsSchema.startsWith('$'),
+    `currentBalance display is currency string, got ${balanceViaSavingsSchema}`
+);
+
+const savingsForm = { innerHTML: '' };
+renderFormFields(savingsForm, SAVINGS_FIELDS);
+assert(savingsForm.innerHTML.includes('id="savingsName"'), 'form renders savingsName');
+assert(savingsForm.innerHTML.includes('id="savingsMonthly"'), 'form renders savingsMonthly');
+assert(savingsForm.innerHTML.includes('id="savingsEndDate"'), 'form renders savingsEndDate');
+assert(savingsForm.innerHTML.includes('id="savingsIncludeInTotal"'), 'form renders savingsIncludeInTotal');
+assert(savingsForm.innerHTML.includes('type="checkbox"'), 'includeInTotal is a checkbox');
+assert(!savingsForm.innerHTML.includes('currentBalance'), 'form does not render currentBalance');
+assert(
+    (savingsForm.innerHTML.match(/sheet-ruled-row input-row/g) || []).length === 7,
+    'savings form renders seven input rows'
 );
 
 // --- summary ---
