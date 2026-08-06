@@ -270,6 +270,42 @@
     display: flex;
 }
 
+/* Floating read-only detail panels — no backdrop, stack on chart side */
+#floatingDetailPanelsRoot {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.floating-detail-panel {
+    --panel-top: 72px;
+    --panel-right: 20px;
+    --panel-offset-x: 0px;
+    --panel-offset-y: 0px;
+    --panel-z: 1000;
+    position: fixed;
+    top: calc(var(--panel-top) + var(--panel-offset-y));
+    right: calc(var(--panel-right) + var(--panel-offset-x));
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+    pointer-events: none;
+    z-index: var(--panel-z);
+}
+
+.floating-detail-panel.is-front {
+    --panel-z: 1100;
+}
+
+.floating-detail-panel .loose-leaf-sheet {
+    pointer-events: auto;
+    transform: rotate(-0.6deg);
+}
+
 .loose-leaf-sheet {
     position: relative;
     width: min(420px, calc(100vw - 32px));

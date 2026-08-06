@@ -124,13 +124,17 @@
         </div>
     </div>
 
-    <!-- Loan detail — same loose-leaf paper as the folder sheet -->
-    <div id="loanDetailModal" class="modal loan-detail-overlay">
-        <div class="loose-leaf-sheet" role="dialog" aria-modal="true" aria-labelledby="loanDetailHeading">
-            <button type="button" class="loose-leaf-sheet-x" onclick="closeLoanDetail()" aria-label="Close">&times;</button>
-            <div id="loanDetailBody" class="loose-leaf-sheet-body"></div>
+    <!-- Floating detail panels mount here (cloned from template at runtime) -->
+    <div id="floatingDetailPanelsRoot" aria-live="polite"></div>
+
+    <template id="floatingDetailPanelTemplate">
+        <div class="floating-detail-panel" data-entity-key="">
+            <div class="loose-leaf-sheet" role="dialog" aria-modal="false">
+                <button type="button" class="loose-leaf-sheet-x" aria-label="Close">&times;</button>
+                <div class="loose-leaf-sheet-body"></div>
+            </div>
         </div>
-    </div>
+    </template>
 
     <!-- Add loan form — loose-leaf sheet -->
     <div id="addLoanModal" class="modal loan-detail-overlay">
@@ -144,14 +148,6 @@
                     <button type="button" class="sheet-inline-btn" onclick="closeAddLoanForm()">Cancel</button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Savings detail — same loose-leaf paper as the folder sheet -->
-    <div id="savingsDetailModal" class="modal loan-detail-overlay">
-        <div class="loose-leaf-sheet" role="dialog" aria-modal="true" aria-labelledby="savingsDetailHeading">
-            <button type="button" class="loose-leaf-sheet-x" onclick="closeSavingsDetail()" aria-label="Close">&times;</button>
-            <div id="savingsDetailBody" class="loose-leaf-sheet-body"></div>
         </div>
     </div>
 

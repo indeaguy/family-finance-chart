@@ -13,11 +13,10 @@
  *   resetPencilEntranceSession, playPencilEntranceRoll, resetFolderSheetRaise);
  *   summary-overlay.js
  *   (closeSummaryOverlay, closeChartHeaderModal); app.js globals
- *   (closeNetWorthOverrides, closeLoanDetail, closeAddLoanForm, closeSavingsDetail,
- *   closeAddSavingsForm);
+ *   (closeNetWorthOverrides, closeAddLoanForm, closeAddSavingsForm);
  *   DOM: #drawer, .drawer-handle, .pencil, .pencil-barrel-roll,
- *   #netWorthOverridesModal, #chartHeaderModal, #loanDetailModal,
- *   #addLoanModal, #savingsDetailModal, #addSavingsModal, #summaryOverlay.
+ *   #netWorthOverridesModal, #chartHeaderModal, #addLoanModal, #addSavingsModal,
+ *   #summaryOverlay. Floating detail panels (#floatingDetailPanelsRoot) do not block drawer close.
  */
 
 /** Must stay in sync with `.drawer-container { transition: transform … }` */
@@ -345,13 +344,11 @@ document.addEventListener('click', function(e) {
     const handle = document.querySelector('.drawer-handle');
     const netWorthModal = document.getElementById('netWorthOverridesModal');
     const chartHeaderModal = document.getElementById('chartHeaderModal');
-    const loanDetailModal = document.getElementById('loanDetailModal');
     const addLoanModal = document.getElementById('addLoanModal');
-    const savingsDetailModal = document.getElementById('savingsDetailModal');
     const addSavingsModal = document.getElementById('addSavingsModal');
     const summaryOverlay = document.getElementById('summaryOverlay');
 
-    const modalOpen = [netWorthModal, chartHeaderModal, loanDetailModal, addLoanModal, savingsDetailModal, addSavingsModal].some(
+    const modalOpen = [netWorthModal, chartHeaderModal, addLoanModal, addSavingsModal].some(
         (modal) => modal && (modal.style.display === 'block' || modal.style.display === 'flex' || modal.classList.contains('is-open'))
     );
     
@@ -370,16 +367,8 @@ document.addEventListener('click', function(e) {
         closeChartHeaderModal();
     }
 
-    if (loanDetailModal && e.target === loanDetailModal) {
-        closeLoanDetail();
-    }
-
     if (addLoanModal && e.target === addLoanModal) {
         closeAddLoanForm();
-    }
-
-    if (savingsDetailModal && e.target === savingsDetailModal) {
-        closeSavingsDetail();
     }
 
     if (addSavingsModal && e.target === addSavingsModal) {

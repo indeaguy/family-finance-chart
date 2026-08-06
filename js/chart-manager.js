@@ -6,6 +6,8 @@
  * Hover right-axis labels are DOM (title + amount + interest) with collision stacking —
  * LC native axis pills cannot do adjacent interest or shared stacking with custom badges.
  * Near a line, that series and its axis row emphasize; others dim (see SERIES_HOVER_*).
+ * While floating read-only detail panels are open, setDetailFocus dims non-panel series
+ * and Y-axis hover labels show only the focused entity lines.
  */
 
 /** Per-loan balance line styling — edit here (not exposed in UI). */
@@ -90,6 +92,34 @@ class ChartManager {
 
         /** @type {object|null} series currently emphasized on line hover */
         this.activeHoveredSeries = null;
+
+        /** @type {object|null} series locked while a drawer list row is hovered */
+        this.listHoveredSeries = null;
+
+        /** @type {Map<number, object>} loan id → individual loan line series */
+        this.seriesByLoanId = new Map();
+
+        /** @type {Map<number, object>} savings id → individual savings line series */
+        this.seriesBySavingsId = new Map();
+
+        /** @type {Set<object>} series emphasized while a floating detail panel is open */
+        this.detailFocusSeries = new Set();
+
+        /** @type {number[]} loan ids with an open detail panel */
+        this.detailFocusLoanIds = [];
+
+        /** @type {number[]} savings ids with an open detail panel */
+        this.detailFocusSavingsIds = [];
+
+        /** @type {object|null} last crosshair move payload for hover refresh on panel close */
+        this.lastCrosshairParam = null;
+
+        /** @type {object|null} chart data row at last crosshair time */
+        this.lastCrosshairDataPoint = null;
+    }
+
+    isDetailFocusActive() {
+        return this.detailFocusLoanIds.length > 0 || this.detailFocusSavingsIds.length > 0;
     }
     
     createChart(container) {
@@ -188,28 +218,149 @@ class ChartManager {
     
     setupChartHover(chart) {
         chart.subscribeCrosshairMove(param => {
+            const detailFocusActive = this.isDetailFocusActive();
+
             if (!param.time || !window.app || !window.app.uiManager) {
+                this.lastCrosshairParam = null;
+                this.lastCrosshairDataPoint = null;
                 this.clearAxisLabels();
-                this.setHoveredSeries(null);
+                if (!this.listHoveredSeries && !detailFocusActive) {
+                    this.setHoveredSeries(null);
+                }
                 return;
             }
 
             const chartData = window.app.uiManager.currentChartData;
             if (!chartData || chartData.length === 0) {
+                this.lastCrosshairParam = null;
+                this.lastCrosshairDataPoint = null;
                 this.clearAxisLabels();
-                this.setHoveredSeries(null);
+                if (!this.listHoveredSeries && !detailFocusActive) {
+                    this.setHoveredSeries(null);
+                }
                 return;
             }
 
             const dataPoint = chartData.find(d => d.timestamp === param.time);
+            this.lastCrosshairParam = param;
+            this.lastCrosshairDataPoint = dataPoint || null;
             if (dataPoint && window.showChartHover) {
                 window.showChartHover(param, dataPoint);
             }
 
-            const hoveredSeries = this.resolveHoveredSeries(param);
-            this.setHoveredSeries(hoveredSeries);
-            this.updateHoverAxisLabels(param, dataPoint, hoveredSeries);
+            if (!detailFocusActive) {
+                const chartHoveredSeries = this.resolveHoveredSeries(param);
+                const hoveredSeries = chartHoveredSeries ?? this.listHoveredSeries;
+                this.setHoveredSeries(hoveredSeries);
+                this.updateHoverAxisLabels(param, dataPoint, hoveredSeries);
+            } else {
+                this.updateHoverAxisLabels(param, dataPoint, null);
+            }
         });
+    }
+
+    setDetailFocus({ loanIds = [], savingsIds = [] }) {
+        this.detailFocusLoanIds = loanIds.map(Number);
+        this.detailFocusSavingsIds = savingsIds.map(Number);
+
+        if (this.isDetailFocusActive()) {
+            // List-row hover from opening a panel must not linger after panels close.
+            this.listHoveredSeries = null;
+        }
+
+        this.resolveDetailFocusSeries();
+        this.refreshHoverPresentation();
+    }
+
+    resolveHoveredSeriesFromLastCrosshair() {
+        if (!this.lastCrosshairParam?.time) {
+            return null;
+        }
+        return this.resolveHoveredSeries(this.lastCrosshairParam);
+    }
+
+    /** Re-apply line emphasis and Y-axis labels after detail panels open/close. */
+    refreshHoverPresentation() {
+        if (this.isDetailFocusActive()) {
+            this.applyDetailFocusHighlight();
+            if (this.lastCrosshairParam?.time && this.lastCrosshairDataPoint) {
+                this.updateHoverAxisLabels(this.lastCrosshairParam, this.lastCrosshairDataPoint, null);
+            } else {
+                this.clearAxisLabels();
+            }
+            return;
+        }
+
+        // Detail focus ended — reset all lines, then only re-emphasize crosshair proximity.
+        this.activeHoveredSeries = null;
+        this.applySeriesHoverHighlight(null);
+
+        const chartHoveredSeries = this.resolveHoveredSeriesFromLastCrosshair();
+        if (chartHoveredSeries) {
+            this.activeHoveredSeries = chartHoveredSeries;
+            this.applySeriesHoverHighlight(chartHoveredSeries);
+        }
+
+        if (this.lastCrosshairParam?.time && this.lastCrosshairDataPoint) {
+            this.updateHoverAxisLabels(this.lastCrosshairParam, this.lastCrosshairDataPoint, chartHoveredSeries);
+        } else {
+            this.clearAxisLabels();
+        }
+    }
+
+    resolveDetailFocusSeries() {
+        this.detailFocusSeries.clear();
+        for (const id of this.detailFocusLoanIds) {
+            const series = this.seriesByLoanId.get(id);
+            if (series) this.detailFocusSeries.add(series);
+        }
+        for (const id of this.detailFocusSavingsIds) {
+            const series = this.seriesBySavingsId.get(id);
+            if (series) this.detailFocusSeries.add(series);
+        }
+    }
+
+    applyDetailFocusHighlight() {
+        if (!this.isDetailFocusActive()) {
+            return;
+        }
+
+        for (const series of this.getTrackedSeries()) {
+            const base = this.seriesBaseStyles.get(series);
+            if (!base) continue;
+
+            const isFocused = this.detailFocusSeries.has(series);
+            series.applyOptions({
+                color: isFocused ? base.color : this.colorWithAlpha(base.color, SERIES_HOVER_DIM_ALPHA),
+                lineWidth: isFocused ? base.lineWidth + 1 : base.lineWidth,
+                lineStyle: base.lineStyle
+            });
+        }
+    }
+
+    highlightLoanFromList(loanId) {
+        if (this.isDetailFocusActive()) return;
+        const series = this.seriesByLoanId.get(Number(loanId));
+        if (!series) return;
+        this.listHoveredSeries = series;
+        this.setHoveredSeries(series);
+    }
+
+    highlightSavingsFromList(accountId) {
+        if (this.isDetailFocusActive()) return;
+        const series = this.seriesBySavingsId.get(Number(accountId));
+        if (!series) return;
+        this.listHoveredSeries = series;
+        this.setHoveredSeries(series);
+    }
+
+    clearListHoverHighlight(entityId, kind) {
+        if (this.isDetailFocusActive()) return;
+        const map = kind === 'loan' ? this.seriesByLoanId : this.seriesBySavingsId;
+        const series = map.get(Number(entityId));
+        if (!series || this.listHoveredSeries !== series) return;
+        this.listHoveredSeries = null;
+        this.setHoveredSeries(null);
     }
 
     registerSeriesStyle(series, options) {
@@ -272,6 +423,9 @@ class ChartManager {
     }
 
     setHoveredSeries(series) {
+        if (this.isDetailFocusActive()) {
+            return;
+        }
         if (this.activeHoveredSeries === series) {
             return;
         }
@@ -280,6 +434,11 @@ class ChartManager {
     }
 
     applySeriesHoverHighlight(hoveredSeries) {
+        if (this.isDetailFocusActive()) {
+            this.applyDetailFocusHighlight();
+            return;
+        }
+
         for (const series of this.getTrackedSeries()) {
             const base = this.seriesBaseStyles.get(series);
             if (!base) continue;
@@ -389,7 +548,7 @@ class ChartManager {
 
         const left = this.chart.timeScale().width();
         const labelHeight = 18;
-        const rows = [];
+        let rows = [];
 
         for (const series of this.getTrackedSeries()) {
             const data = param.seriesData.get(series);
@@ -413,6 +572,14 @@ class ChartManager {
         if (rows.length === 0) {
             this.clearAxisLabels();
             return;
+        }
+
+        if (this.isDetailFocusActive()) {
+            rows = rows.filter((row) => this.detailFocusSeries.has(row.series));
+            if (rows.length === 0) {
+                this.clearAxisLabels();
+                return;
+            }
         }
 
         // Stack top-to-bottom: keep order by price position, nudge when too close.
@@ -485,6 +652,11 @@ class ChartManager {
             
             // Apply chart styling with zoom-out padding
             this.applyChartStyling(chart, results);
+
+            if (this.isDetailFocusActive()) {
+                this.resolveDetailFocusSeries();
+                this.refreshHoverPresentation();
+            }
             
         } catch (error) {
             console.error('Error updating chart:', error);
@@ -496,7 +668,11 @@ class ChartManager {
         this.seriesDisplayNames.clear();
         this.seriesInterestByTime.clear();
         this.seriesBaseStyles.clear();
+        this.seriesByLoanId.clear();
+        this.seriesBySavingsId.clear();
+        this.detailFocusSeries.clear();
         this.activeHoveredSeries = null;
+        this.listHoveredSeries = null;
 
         Object.keys(this.chartSeries).forEach(key => {
             const entry = this.chartSeries[key];
@@ -541,6 +717,9 @@ class ChartManager {
                 time: point.time,
                 value: point.value
             })));
+            if (series.id != null) {
+                this.seriesByLoanId.set(series.id, lineSeries);
+            }
             this.chartSeries.individualLoans.push(lineSeries);
         });
     }
@@ -573,6 +752,9 @@ class ChartManager {
                 time: point.time,
                 value: point.value
             })));
+            if (series.id != null) {
+                this.seriesBySavingsId.set(series.id, lineSeries);
+            }
             this.chartSeries.individualSavings.push(lineSeries);
         });
     }

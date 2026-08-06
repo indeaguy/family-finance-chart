@@ -2,10 +2,11 @@
  * Main orchestrator: wires components, owns chart lifecycle, exposes HTML onclick globals.
  * Defines globals: FinanceApp, app / window.app, addLoan, removeLoan, showLoanDetail,
  *   closeLoanDetail, showAddLoanForm, closeAddLoanForm, addSavingsAccount, removeSavingsAccount,
- *   showSavingsDetail, closeSavingsDetail, showAddSavingsForm, closeAddSavingsForm,
+ *   showSavingsDetail, closeSavingsDetail, closeDetailPanel, showAddSavingsForm, closeAddSavingsForm,
  *   clearAllLoans, exportToJSON,
  *   importFromJSON, showNetWorthOverrides, closeNetWorthOverrides,
- *   addNetWorthOverrideFromForm, removeNetWorthOverride
+ *   addNetWorthOverrideFromForm, removeNetWorthOverride,
+ *   highlightChartLoan, highlightChartSavings, clearChartListHover
  * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
  *   folder-sheet.js (resetFolderSheetRaise after loan/savings list changes);
  *   field-model via UIManager.ensureLoanFormFields / ensureSavingsFormFields;
@@ -190,7 +191,7 @@ class FinanceApp {
     removeSavingsAccount(accountId) {
         this.dataManager.removeSavingsAccount(accountId);
         this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
-        this.uiManager.closeSavingsDetailModal();
+        this.uiManager.closeSavingsDetailModal(accountId);
         this.updateChart();
         if (typeof resetFolderSheetRaise === 'function') {
             resetFolderSheetRaise();
@@ -203,14 +204,14 @@ class FinanceApp {
         this.uiManager.showSavingsDetailModal(account);
     }
 
-    closeSavingsDetail() {
-        this.uiManager.closeSavingsDetailModal();
+    closeSavingsDetail(accountId) {
+        this.uiManager.closeSavingsDetailModal(accountId);
     }
     
     removeLoan(loanId) {
         this.dataManager.removeLoan(loanId);
         this.uiManager.updateLoansList(this.dataManager.getLoans());
-        this.uiManager.closeLoanDetailModal();
+        this.uiManager.closeLoanDetailModal(loanId);
         this.updateChart();
         if (typeof resetFolderSheetRaise === 'function') {
             resetFolderSheetRaise();
@@ -223,8 +224,8 @@ class FinanceApp {
         this.uiManager.showLoanDetailModal(loan);
     }
 
-    closeLoanDetail() {
-        this.uiManager.closeLoanDetailModal();
+    closeLoanDetail(loanId) {
+        this.uiManager.closeLoanDetailModal(loanId);
     }
     
     clearAllLoans() {
@@ -257,6 +258,7 @@ class FinanceApp {
         this.dataManager.importData(file)
             .then(data => {
                 this.uiManager.loadDataToForm(data);
+                this.uiManager.closeAllDetailPanels();
                 this.uiManager.updateLoansList(this.dataManager.getLoans());
                 this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
                 this.updateChart();
@@ -309,8 +311,11 @@ function removeLoan(id) {
 function showLoanDetail(id) {
     if (app) app.showLoanDetail(id);
 }
-function closeLoanDetail() {
-    if (app) app.closeLoanDetail();
+function closeLoanDetail(id) {
+    if (app) app.closeLoanDetail(id);
+}
+function closeDetailPanel(key) {
+    if (app) app.uiManager.closeDetailPanel(key);
 }
 function showAddLoanForm() {
     if (app) app.showAddLoanForm();
@@ -327,8 +332,8 @@ function removeSavingsAccount(id) {
 function showSavingsDetail(id) {
     if (app) app.showSavingsDetail(id);
 }
-function closeSavingsDetail() {
-    if (app) app.closeSavingsDetail();
+function closeSavingsDetail(id) {
+    if (app) app.closeSavingsDetail(id);
 }
 function showAddSavingsForm() {
     if (app) app.showAddSavingsForm();
@@ -356,4 +361,13 @@ function addNetWorthOverrideFromForm() {
 }
 function removeNetWorthOverride(month) { 
     if (app) app.overrideManager.remove(month); 
+}
+function highlightChartLoan(id) {
+    if (app) app.chartManager.highlightLoanFromList(id);
+}
+function highlightChartSavings(id) {
+    if (app) app.chartManager.highlightSavingsFromList(id);
+}
+function clearChartListHover(id, kind) {
+    if (app) app.chartManager.clearListHoverHighlight(id, kind);
 }
