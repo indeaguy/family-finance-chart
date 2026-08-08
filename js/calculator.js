@@ -3,7 +3,8 @@
  * Defines globals: FinanceCalculator
  * Depends on: DataManager (injected via setDataManager) for loans, savings accounts, overrides;
  *   DOM projection inputs: #timePeriod, #goalAmount, #startDate
- * Owns: calculateMonthlyPayment, remainingBalanceAsOf, savingsBalanceAsOf
+ * Owns: calculateMonthlyPayment, remainingBalanceAsOf, savingsBalanceAsOf;
+ *   entity balanceOverrides (YYYY-MM) applied in month-step + *BalanceAsOf helpers
  * Note: summary-overlay.js may mirror projection totals; prefer calculator results when available.
  */
 
@@ -89,7 +90,7 @@ class FinanceCalculator {
         // Monthly calculations
         for (let month = 1; month <= totalMonths; month++) {
             // Grow each savings account (freeze after endMonth at that month's ending value)
-            const savingsStep = this.calculateSavingsBalances(accountStates, month);
+            const savingsStep = this.calculateSavingsBalances(accountStates, month, baseDate);
             currentSavings = savingsStep.totalBalance;
             
             // Calculate loan payments and balances (do not reduce savings — accounts sum to total)
@@ -177,12 +178,30 @@ class FinanceCalculator {
         };
     }
 
+    /** Chart-relative month index → YYYY-MM using the projection base date. */
+    calendarMonthKey(baseDate, month) {
+        const date = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+        date.setMonth(date.getMonth() + month - 1);
+        return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+    }
+
+    /** YYYY-MM → ending balance from entity.balanceOverrides, or null if unset. */
+    lookupBalanceOverride(balanceOverrides, yyyyMm) {
+        if (!balanceOverrides || typeof balanceOverrides !== 'object' || Array.isArray(balanceOverrides)) {
+            return null;
+        }
+        if (!Object.prototype.hasOwnProperty.call(balanceOverrides, yyyyMm)) return null;
+        const n = Number(balanceOverrides[yyyyMm]);
+        return Number.isFinite(n) ? n : null;
+    }
+
     /**
      * Advance each savings account one month. After endMonth (inclusive last growth month),
      * balance freezes but still counts toward the total for the rest of the chart
      * (unless includeInTotal is false — earmarked spend, still drawn as its own line).
+     * Entity balanceOverrides replace the ending balance for that calendar month.
      */
-    calculateSavingsBalances(accountStates, month) {
+    calculateSavingsBalances(accountStates, month, baseDate = null) {
         let totalBalance = 0;
 
         accountStates.forEach(account => {
@@ -206,6 +225,16 @@ class FinanceCalculator {
                 account.cumulativeContributions += contribution;
             }
 
+            if (baseDate) {
+                const overridden = this.lookupBalanceOverride(
+                    account.balanceOverrides,
+                    this.calendarMonthKey(baseDate, month)
+                );
+                if (overridden !== null) {
+                    account.balance = overridden;
+                }
+            }
+
             if (account.includeInTotal !== false) {
                 totalBalance += account.balance;
             }
@@ -221,20 +250,30 @@ class FinanceCalculator {
         let principalPaid = 0;
         
         loanPayments.forEach(loan => {
-            if (month >= loan.startMonth && loan.remainingBalance > 0) {
-                const monthlyInterest = loan.remainingBalance * (loan.rate / 100 / 12);
-                const monthlyPrincipal = Math.min(loan.monthlyPayment - monthlyInterest, loan.remainingBalance);
+            if (month >= loan.startMonth) {
+                if (loan.remainingBalance > 0) {
+                    const monthlyInterest = loan.remainingBalance * (loan.rate / 100 / 12);
+                    const monthlyPrincipal = Math.min(loan.monthlyPayment - monthlyInterest, loan.remainingBalance);
+                    
+                    loan.remainingBalance -= monthlyPrincipal;
+                    loan.cumulativeInterestPaid += monthlyInterest;
+                    monthlyPayment += monthlyInterest + monthlyPrincipal;
+                    interestPaid += monthlyInterest;
+                    principalPaid += monthlyPrincipal;
+                    
+                    // Ensure balance doesn't go negative
+                    if (loan.remainingBalance < 0) loan.remainingBalance = 0;
+                }
+
+                const overridden = this.lookupBalanceOverride(
+                    loan.balanceOverrides,
+                    this.calendarMonthKey(baseDate, month)
+                );
+                if (overridden !== null) {
+                    loan.remainingBalance = Math.max(0, overridden);
+                }
                 
-                loan.remainingBalance -= monthlyPrincipal;
-                loan.cumulativeInterestPaid += monthlyInterest;
-                monthlyPayment += monthlyInterest + monthlyPrincipal;
-                interestPaid += monthlyInterest;
-                principalPaid += monthlyPrincipal;
-                
-                // Ensure balance doesn't go negative
-                if (loan.remainingBalance < 0) loan.remainingBalance = 0;
-                
-                // Check if loan was just paid off
+                // Check if loan was just paid off (amortization or override to zero)
                 if (loan.remainingBalance === 0 && !loan.isPaidOff) {
                     loan.isPaidOff = true;
                     loan.payoffMonth = month;
@@ -251,6 +290,10 @@ class FinanceCalculator {
                         shape: 'circle',
                         text: `${(loan.name && String(loan.name).trim()) || 'Loan'} Paid Off!`
                     });
+                } else if (loan.remainingBalance > 0 && loan.isPaidOff) {
+                    // Override revived a paid-off loan — resume the series
+                    loan.isPaidOff = false;
+                    loan.payoffMonth = null;
                 }
             }
             
@@ -363,11 +406,19 @@ class FinanceCalculator {
         const rate = loan.rate || 0;
 
         for (let i = 0; i < monthsElapsed; i++) {
-            if (balance <= 0) return 0;
-            const monthlyInterest = balance * (rate / 100 / 12);
-            const monthlyPrincipal = Math.min(payment - monthlyInterest, balance);
-            balance -= monthlyPrincipal;
-            if (balance < 0) balance = 0;
+            if (balance > 0) {
+                const monthlyInterest = balance * (rate / 100 / 12);
+                const monthlyPrincipal = Math.min(payment - monthlyInterest, balance);
+                balance -= monthlyPrincipal;
+                if (balance < 0) balance = 0;
+            }
+            // Keep looping after payoff so later balanceOverrides can revive the balance.
+            const monthDate = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+            const yyyyMm = monthDate.getFullYear() + '-' + String(monthDate.getMonth() + 1).padStart(2, '0');
+            const overridden = this.lookupBalanceOverride(loan.balanceOverrides, yyyyMm);
+            if (overridden !== null) {
+                balance = Math.max(0, overridden);
+            }
         }
 
         return balance;
@@ -414,12 +465,18 @@ class FinanceCalculator {
         let balance = account.amount;
         const monthlyRate = (account.rate || 0) / 100 / 12;
         const contribution = account.monthlyContribution || 0;
-        const growthMonths = endMonthIndex != null
-            ? Math.min(monthsElapsed, endMonthIndex)
-            : monthsElapsed;
 
-        for (let i = 0; i < growthMonths; i++) {
-            balance = balance * (1 + monthlyRate) + contribution;
+        for (let i = 0; i < monthsElapsed; i++) {
+            const withinGrowth = endMonthIndex == null || (i + 1) <= endMonthIndex;
+            if (withinGrowth) {
+                balance = balance * (1 + monthlyRate) + contribution;
+            }
+            const monthDate = new Date(startMonthDate.getFullYear(), startMonthDate.getMonth() + i, 1);
+            const yyyyMm = monthDate.getFullYear() + '-' + String(monthDate.getMonth() + 1).padStart(2, '0');
+            const overridden = this.lookupBalanceOverride(account.balanceOverrides, yyyyMm);
+            if (overridden !== null) {
+                balance = overridden;
+            }
         }
 
         return balance;

@@ -13,12 +13,12 @@
  *   resetPencilEntranceSession, playPencilEntranceRoll, resetFolderSheetRaise);
  *   summary-overlay.js
  *   (closeSummaryOverlay, closeChartHeaderModal); app.js globals
- *   (closeNetWorthOverrides, closeAddLoanForm, closeAddSavingsForm);
+ *   (closeNetWorthOverrides, closeAccountBalanceOverrides, closeAddLoanForm, closeAddSavingsForm);
  *   DOM: #drawer, .drawer-handle, .pencil, .pencil-barrel-roll,
- *   #netWorthOverridesModal, #chartHeaderModal, #addLoanModal, #addSavingsModal,
- *   #summaryOverlay, #accountCardsRoot. Clicks on account cards do not close the
- *   drawer (no backdrop — chart/elsewhere still does); open/close/resize re-pin
- *   cards via UIManager.syncAccountCardAnchorPosition.
+ *   #netWorthOverridesModal, #accountBalanceOverridesModal, #chartHeaderModal,
+ *   #addLoanModal, #addSavingsModal, #summaryOverlay, #accountCardsRoot.
+ *   Clicks on account cards do not close the drawer (no backdrop — chart/elsewhere
+ *   still does); open/close/resize re-pin cards via UIManager.syncAccountCardAnchorPosition.
  */
 
 /** Must stay in sync with `.drawer-container { transition: transform … }` */
@@ -356,12 +356,13 @@ document.addEventListener('click', function(e) {
     const handle = document.querySelector('.drawer-handle');
     const accountCardsRoot = document.getElementById('accountCardsRoot');
     const netWorthModal = document.getElementById('netWorthOverridesModal');
+    const accountBalanceModal = document.getElementById('accountBalanceOverridesModal');
     const chartHeaderModal = document.getElementById('chartHeaderModal');
     const addLoanModal = document.getElementById('addLoanModal');
     const addSavingsModal = document.getElementById('addSavingsModal');
     const summaryOverlay = document.getElementById('summaryOverlay');
 
-    const modalOpen = [netWorthModal, chartHeaderModal, addLoanModal, addSavingsModal].some(
+    const modalOpen = [netWorthModal, accountBalanceModal, chartHeaderModal, addLoanModal, addSavingsModal].some(
         (modal) => modal && (modal.style.display === 'block' || modal.style.display === 'flex' || modal.classList.contains('is-open'))
     );
     
@@ -374,6 +375,10 @@ document.addEventListener('click', function(e) {
     // Close net worth modal when clicking outside
     if (netWorthModal && e.target === netWorthModal) {
         closeNetWorthOverrides();
+    }
+
+    if (accountBalanceModal && e.target === accountBalanceModal) {
+        closeAccountBalanceOverrides();
     }
     
     // Close chart header modal when clicking outside

@@ -196,6 +196,34 @@
         </div>
     </div>
 
+    <!-- Per-account balance overrides (calendar) -->
+    <div id="accountBalanceOverridesModal" class="modal">
+        <div class="modal-content account-balance-overrides-modal">
+            <div class="modal-header">
+                <h2 id="accountBalanceOverridesTitle">Date Overrides</h2>
+                <span class="close" onclick="closeAccountBalanceOverrides()">&times;</span>
+            </div>
+            <div class="balance-override-year-nav">
+                <button type="button" onclick="shiftAccountOverrideYear(-1)" aria-label="Previous year">&lsaquo;</button>
+                <span id="accountBalanceOverrideYearLabel"></span>
+                <button type="button" onclick="shiftAccountOverrideYear(1)" aria-label="Next year">&rsaquo;</button>
+            </div>
+            <div id="accountBalanceOverridesCalendar" class="balance-override-calendar" aria-label="Month calendar"></div>
+            <div class="balance-override-form">
+                <label>Month:</label>
+                <input type="month" id="accountBalanceOverrideMonth">
+                <label>Balance ($):</label>
+                <input type="number" id="accountBalanceOverrideAmount" min="0" step="1" placeholder="Ending balance">
+                <button type="button" onclick="addAccountBalanceOverrideFromForm()">+ Set</button>
+            </div>
+            <div class="help-text">Pick a month on the calendar (highlighted months already have an override). That balance becomes the account value for the month and drives the forecast afterward.</div>
+            <div id="accountBalanceOverridesList"></div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeAccountBalanceOverrides()" style="background: #28a745;">Done</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Chart Header Edit Modal -->
     <div id="chartHeaderModal" class="modal">
         <div class="modal-content">

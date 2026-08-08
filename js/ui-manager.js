@@ -11,7 +11,8 @@
  *
  * Domain: "account card" = floating sheet for one loan or savings account
  * (#accountCardsRoot / #accountCardTemplate / .account-card / openAccountCard).
- * View mode is detail rows; Edit swaps in form fields and reveals Remove (confirm before delete).
+ * View mode is detail rows; Edit swaps in form fields, Date overrides (calendar modal),
+ * and reveals Remove (confirm before delete).
  * Position: aligned to #accountCardAnchor (drawer .control-group left of the folder).
  */
 
@@ -443,6 +444,7 @@ class UIManager {
                 <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(loan.name && String(loan.name).trim()) || 'Edit loan'}</div>
                 <div data-account-card-form></div>
                 <div class="sheet-ruled-row loan-detail-actions">
+                    <button type="button" class="sheet-inline-btn" onclick="showAccountBalanceOverrides('loan', ${loan.id})">Date overrides</button>
                     <button type="button" class="sheet-inline-btn" onclick="saveAccountCard('${cardKey}')">Save</button>
                     <button type="button" class="sheet-inline-btn sheet-danger-btn account-card-remove-btn" onclick="confirmRemoveLoan(${loan.id})">Remove</button>
                     <button type="button" class="sheet-inline-btn" onclick="cancelEditAccountCard('${cardKey}')">Cancel</button>
@@ -477,6 +479,7 @@ class UIManager {
                 <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(account.name && String(account.name).trim()) || 'Edit savings'}</div>
                 <div data-account-card-form></div>
                 <div class="sheet-ruled-row loan-detail-actions">
+                    <button type="button" class="sheet-inline-btn" onclick="showAccountBalanceOverrides('savings', ${account.id})">Date overrides</button>
                     <button type="button" class="sheet-inline-btn" onclick="saveAccountCard('${cardKey}')">Save</button>
                     <button type="button" class="sheet-inline-btn sheet-danger-btn account-card-remove-btn" onclick="confirmRemoveSavingsAccount(${account.id})">Remove</button>
                     <button type="button" class="sheet-inline-btn" onclick="cancelEditAccountCard('${cardKey}')">Cancel</button>

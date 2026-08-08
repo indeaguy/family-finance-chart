@@ -7,7 +7,7 @@
  *   #chartTitle, etc.)
  * Owns: loans[], savingsAccounts[], financialOverrides[]; createLoan / addLoan / updateLoan / removeLoan;
  *   createSavingsAccount / addSavingsAccount / updateSavingsAccount / removeSavingsAccount;
- *   exportData / importData; loadDefaultExampleIfNeeded (DEFAULT_EXAMPLE_DATA)
+ *   entity balanceOverrides CRUD helpers; exportData / importData; loadDefaultExampleIfNeeded (DEFAULT_EXAMPLE_DATA)
  *
  * Field schemas live with their owner store. LOAN_FIELDS / SAVINGS_FIELDS drive
  * form/table/detail/JSON via field-model helpers.
@@ -157,6 +157,23 @@ const LOAN_FIELDS = [
         export: true,
         import: true,
         default: 1
+    },
+    {
+        // YYYY-MM → ending balance for that calendar month; subsequent months amortize from it.
+        key: 'balanceOverrides',
+        label: 'Balance overrides',
+        type: 'object',
+        form: false,
+        table: false,
+        detail: false,
+        export: true,
+        import: true,
+        default: {},
+        exportValue: (loan) => {
+            const map = loan.balanceOverrides;
+            if (!map || typeof map !== 'object' || Array.isArray(map)) return {};
+            return map;
+        }
     },
     {
         key: 'calculatedPayment',
@@ -391,6 +408,23 @@ const SAVINGS_FIELDS = [
         exportValue: (account) => (account.endMonth != null ? account.endMonth : null)
     },
     {
+        // YYYY-MM → ending balance for that calendar month; subsequent months grow from it.
+        key: 'balanceOverrides',
+        label: 'Balance overrides',
+        type: 'object',
+        form: false,
+        table: false,
+        detail: false,
+        export: true,
+        import: true,
+        default: {},
+        exportValue: (account) => {
+            const map = account.balanceOverrides;
+            if (!map || typeof map !== 'object' || Array.isArray(map)) return {};
+            return map;
+        }
+    },
+    {
         key: 'currentBalance',
         label: 'Balance',
         type: 'currency',
@@ -517,7 +551,8 @@ class DataManager {
             startDate: loanData.startDate,
             monthlyPayment: monthlyPayment,
             calculatedPayment: calculatedPayment,
-            isCustomPayment: loanData.isCustomPayment || false
+            isCustomPayment: loanData.isCustomPayment || false,
+            balanceOverrides: this.normalizeBalanceOverrides(loanData.balanceOverrides)
         };
     }
 
@@ -565,8 +600,52 @@ class DataManager {
             startDate: accountData.startDate || '',
             endMonth: accountData.endMonth != null ? accountData.endMonth : null,
             endDate: accountData.endDate || '',
-            includeInTotal: accountData.includeInTotal !== false
+            includeInTotal: accountData.includeInTotal !== false,
+            balanceOverrides: this.normalizeBalanceOverrides(accountData.balanceOverrides)
         };
+    }
+
+    /** Keep only YYYY-MM → finite number entries for entity balanceOverrides. */
+    normalizeBalanceOverrides(raw) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+        const out = {};
+        Object.entries(raw).forEach(([key, value]) => {
+            if (!/^\d{4}-\d{2}$/.test(key)) return;
+            const n = Number(value);
+            if (!Number.isFinite(n)) return;
+            out[key] = n;
+        });
+        return out;
+    }
+
+    getEntityByKind(kind, entityId) {
+        return kind === 'loan'
+            ? this.getLoanById(entityId)
+            : this.getSavingsAccountById(entityId);
+    }
+
+    getEntityBalanceOverrides(kind, entityId) {
+        const entity = this.getEntityByKind(kind, entityId);
+        return entity ? this.normalizeBalanceOverrides(entity.balanceOverrides) : {};
+    }
+
+    /** Set or replace a YYYY-MM ending balance on a loan or savings account. */
+    setEntityBalanceOverride(kind, entityId, yyyyMm, amount) {
+        const entity = this.getEntityByKind(kind, entityId);
+        if (!entity || !/^\d{4}-\d{2}$/.test(yyyyMm)) return null;
+        const n = Number(amount);
+        if (!Number.isFinite(n)) return null;
+        entity.balanceOverrides = this.normalizeBalanceOverrides(entity.balanceOverrides);
+        entity.balanceOverrides[yyyyMm] = n;
+        return entity;
+    }
+
+    removeEntityBalanceOverride(kind, entityId, yyyyMm) {
+        const entity = this.getEntityByKind(kind, entityId);
+        if (!entity) return null;
+        entity.balanceOverrides = this.normalizeBalanceOverrides(entity.balanceOverrides);
+        delete entity.balanceOverrides[yyyyMm];
+        return entity;
     }
     
     // Override Management
@@ -738,7 +817,8 @@ class DataManager {
                         startDate: startDate,
                         monthlyPayment: monthlyPayment,
                         calculatedPayment: calculatedPayment,
-                        isCustomPayment: hydrated.isCustomPayment || false
+                        isCustomPayment: hydrated.isCustomPayment || false,
+                        balanceOverrides: this.normalizeBalanceOverrides(hydrated.balanceOverrides)
                     };
                 });
             }
@@ -784,7 +864,8 @@ class DataManager {
             startDate,
             endMonth,
             endDate,
-            includeInTotal: hydrated.includeInTotal !== false
+            includeInTotal: hydrated.includeInTotal !== false,
+            balanceOverrides: this.normalizeBalanceOverrides(hydrated.balanceOverrides)
         };
     }
     

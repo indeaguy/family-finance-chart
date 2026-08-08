@@ -8,6 +8,9 @@
  *   showAddSavingsForm, closeAddSavingsForm, clearAllLoans, exportToJSON,
  *   importFromJSON, showNetWorthOverrides, closeNetWorthOverrides,
  *   addNetWorthOverrideFromForm, removeNetWorthOverride,
+ *   showAccountBalanceOverrides, closeAccountBalanceOverrides,
+ *   shiftAccountOverrideYear, selectAccountOverrideMonth,
+ *   addAccountBalanceOverrideFromForm, removeAccountBalanceOverride,
  *   highlightChartLoan, highlightChartSavings, clearChartListHover
  * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
  *   folder-sheet.js (resetFolderSheetRaise after loan/savings list changes);
@@ -262,6 +265,12 @@ class FinanceApp {
             const loanData = this.uiManager.getLoanFormData({ idPrefix, skipEnsure: true });
             if (!loanData) return;
 
+            // Form scalars omit balanceOverrides — preserve the map set via Date overrides modal.
+            const existingLoan = this.dataManager.getLoanById(entry.entityId);
+            loanData.balanceOverrides = existingLoan
+                ? this.dataManager.normalizeBalanceOverrides(existingLoan.balanceOverrides)
+                : {};
+
             const updated = this.dataManager.updateLoan(entry.entityId, loanData);
             if (!updated) return;
 
@@ -277,6 +286,12 @@ class FinanceApp {
         if (entry.kind === 'savings') {
             const accountData = this.uiManager.getSavingsFormData({ idPrefix, skipEnsure: true });
             if (!accountData) return;
+
+            // Form scalars omit balanceOverrides — preserve the map set via Date overrides modal.
+            const existingAccount = this.dataManager.getSavingsAccountById(entry.entityId);
+            accountData.balanceOverrides = existingAccount
+                ? this.dataManager.normalizeBalanceOverrides(existingAccount.balanceOverrides)
+                : {};
 
             const updated = this.dataManager.updateSavingsAccount(entry.entityId, accountData);
             if (!updated) return;
@@ -438,6 +453,24 @@ function addNetWorthOverrideFromForm() {
 }
 function removeNetWorthOverride(month) { 
     if (app) app.overrideManager.remove(month); 
+}
+function showAccountBalanceOverrides(kind, entityId) {
+    if (app) app.overrideManager.showAccountBalanceOverrides(kind, entityId);
+}
+function closeAccountBalanceOverrides() {
+    if (app) app.overrideManager.closeAccountBalanceOverrides();
+}
+function shiftAccountOverrideYear(delta) {
+    if (app) app.overrideManager.shiftAccountOverrideYear(delta);
+}
+function selectAccountOverrideMonth(yyyyMm) {
+    if (app) app.overrideManager.selectAccountOverrideMonth(yyyyMm);
+}
+function addAccountBalanceOverrideFromForm() {
+    if (app) app.overrideManager.addAccountBalanceOverrideFromForm();
+}
+function removeAccountBalanceOverride(yyyyMm) {
+    if (app) app.overrideManager.removeAccountBalanceOverride(yyyyMm);
 }
 function highlightChartLoan(id) {
     if (app) app.chartManager.highlightLoanFromList(id);

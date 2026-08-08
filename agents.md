@@ -6,7 +6,7 @@ Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional
 
 | Term | Meaning | Code aliases (search these too) |
 |------|---------|----------------------------------|
-| **Account card** | Floating loose-leaf sheet for one loan or savings account (separate from Add Loan / Add Savings modals). View mode shows detail rows; **Edit** swaps in form fields and reveals **Remove** (confirm before delete). One per entity; staggered over `#accountCardAnchor` (drawer `.control-group` left of the folder); no backdrop. | `openAccountCard` / `closeAccountCard`, `editAccountCard` / `saveAccountCard` / `cancelEditAccountCard`, `confirmRemoveLoan` / `confirmRemoveSavingsAccount`, `showLoanAccountCard` / `showSavingsAccountCard`, `#accountCardsRoot`, `#accountCardTemplate`, `#accountCardAnchor`, `.account-card`, `.account-card.is-editing`, `setAccountCardFocus` |
+| **Account card** | Floating loose-leaf sheet for one loan or savings account (separate from Add Loan / Add Savings modals). View mode shows detail rows; **Edit** swaps in form fields, **Date overrides**, and reveals **Remove** (confirm before delete). One per entity; staggered over `#accountCardAnchor` (drawer `.control-group` left of the folder); no backdrop. | `openAccountCard` / `closeAccountCard`, `editAccountCard` / `saveAccountCard` / `cancelEditAccountCard`, `showAccountBalanceOverrides`, `confirmRemoveLoan` / `confirmRemoveSavingsAccount`, `showLoanAccountCard` / `showSavingsAccountCard`, `#accountCardsRoot`, `#accountCardTemplate`, `#accountCardAnchor`, `.account-card`, `.account-card.is-editing`, `setAccountCardFocus` |
 
 ## Which file for which task
 
@@ -20,7 +20,7 @@ Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional
 | Forms, loans/savings lists, add modals, account cards, download | `js/ui-manager.js` |
 | Field-model / loan+savings schema / balance-as-of unit tests | `tests/field-model.mjs` (`npm run test:unit`) |
 | Loose-leaf line/text alignment regression | `tests/loose-leaf-alignment.mjs` (`npm run test:ui`) |
-| Net-worth override modal | `js/override-manager.js` |
+| Net-worth override modal + per-account date-overrides calendar | `js/override-manager.js` |
 | Wire-up, lifecycle, HTML onclick globals | `js/app.js` |
 | Drawer open/close + handle animation | `js/drawer.js` + `css/drawer.css` |
 | Folder tabs, sheet raise, pencil roll | `js/folder-sheet.js` + `css/folder.css` |
@@ -76,13 +76,13 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 
 ### Core app modules
 
-- **`js/calculator.js`** — `FinanceCalculator`: multi-account savings growth (end-date freeze), loan amortization, overrides → chart data; `remainingBalanceAsOf` / `savingsBalanceAsOf` for single-entity balance through a date. Total Savings = sum of account balances (loan payments do not reduce savings).
+- **`js/calculator.js`** — `FinanceCalculator`: multi-account savings growth (end-date freeze), loan amortization, global net-worth overrides → chart data; per-entity `balanceOverrides` (YYYY-MM → ending balance) applied in `calculateSavingsBalances` / `calculateLoanPayments` and `remainingBalanceAsOf` / `savingsBalanceAsOf`. Total Savings = sum of account balances (loan payments do not reduce savings).
 - **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total savings + per-account savings lines (`INDIVIDUAL_SAVINGS_LINES`), total loan balance + per-loan lines (`INDIVIDUAL_LOAN_LINES`); hover right-axis labels are stacked DOM rows (`title` + amount + interest; savings → earned, loans → paid). **`setAccountCardFocus`** dims non-focused series while account cards are open and filters Y-axis hover labels to those series only.
 - **`js/field-model.js`** — Reusable field-schema helpers: filter/format/serialize/hydrate and render form/table/detail from a `*_FIELDS` array. Entity-agnostic; schemas live with their owner store.
 - **`js/default_config/example-default-loans.js`** — `DEFAULT_EXAMPLE_DATA` demo loans + savings accounts applied on load when the user has not imported JSON (script tag; works with `file://`).
-- **`js/data-manager.js`** — `DataManager`: loans, savings accounts, overrides, import/export; owns `LOAN_FIELDS` and `SAVINGS_FIELDS`; applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`. Legacy singular `savings.initialAmount` / `monthlySavings` / `interestRate` imports become one account.
-- **`js/ui-manager.js`** — `UIManager`: forms, loans/savings lists, add modals, account cards (cloned from `#accountCardTemplate` into `#accountCardsRoot`; edit mode uses prefixed `renderFormFields` ids), JSON download (UI generated from `*_FIELDS`).
-- **`js/override-manager.js`** — `OverrideManager`: dual savings + loan-balance overrides.
+- **`js/data-manager.js`** — `DataManager`: loans, savings accounts, overrides, import/export; owns `LOAN_FIELDS` and `SAVINGS_FIELDS` (including entity `balanceOverrides`); applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`. Legacy singular `savings.initialAmount` / `monthlySavings` / `interestRate` imports become one account.
+- **`js/ui-manager.js`** — `UIManager`: forms, loans/savings lists, add modals, account cards (cloned from `#accountCardTemplate` into `#accountCardsRoot`; edit mode uses prefixed `renderFormFields` ids + Date overrides button), JSON download (UI generated from `*_FIELDS`).
+- **`js/override-manager.js`** — `OverrideManager`: dual savings + loan-balance (net-worth) overrides; per-account date-overrides calendar modal (`#accountBalanceOverridesModal`).
 - **`js/app.js`** — `FinanceApp` + onclick globals; dependency injection hub.
 
 ## DOM id ownership
@@ -97,7 +97,7 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 | Loan modals | `#addLoanModal`, `#addLoanFormFields`; loan inputs (`#loanAmount`, etc.) are generated into `#addLoanFormFields` from `LOAN_FIELDS` |
 | Account cards | `#accountCardsRoot`, `#accountCardTemplate` — dynamic `.account-card` instances (loan/savings sheets; view or `.is-editing`; one per entity; staggered at `#accountCardAnchor`) |
 | Savings modals | `#addSavingsModal`, `#addSavingsFormFields`; savings inputs generated from `SAVINGS_FIELDS` |
-| Overrides | `#netWorthOverridesModal`, `#netWorthOverridesList`, `#overrideDate`, `#overrideSavings`, `#overrideLoanBalance` |
+| Overrides | `#netWorthOverridesModal`, `#netWorthOverridesList`, `#overrideDate`, `#overrideSavings`, `#overrideLoanBalance`; per-account `#accountBalanceOverridesModal`, `#accountBalanceOverridesCalendar`, `#accountBalanceOverrideMonth`, `#accountBalanceOverrideAmount`, `#accountBalanceOverridesList` |
 | Chart header modal | `#chartHeaderModal`, `#chartTitle`, `#chartSubtitle`, `#chartHeaderBg`, `#chartHeaderPos`, `#chartHeaderVisible` |
 | Import | `#jsonFileInput` |
 
@@ -108,11 +108,12 @@ Do not “fix” these in drive-by refactors; document and keep in sync:
 1. **`updateSummaryOverlay`** (`summary-overlay.js`) prefers `window.app.calculator.calculateFinancialGrowth()` so multi-account totals stay aligned with the chart.
 2. **`app.js`** calls global **`resetFolderSheetRaise()`** after loan or savings list changes so the folder pocket stays correct.
 3. **`chart-manager.js`** calls **`window.showChartHover`** (from `summary-overlay.js`) on crosshair move.
-4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, add loan/savings modals, and overrides (via `app.js` globals). Account cards have no backdrop; clicks on `#accountCardsRoot` do not close the drawer, but clicks elsewhere still do. Drawer open/close/`resize` call **`UIManager.syncAccountCardAnchorPosition`** so open cards stay on `#accountCardAnchor`.
+4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, add loan/savings modals, net-worth overrides, and account date-overrides (via `app.js` globals). Account cards have no backdrop; clicks on `#accountCardsRoot` do not close the drawer, but clicks elsewhere still do. Drawer open/close/`resize` call **`UIManager.syncAccountCardAnchorPosition`** so open cards stay on `#accountCardAnchor`.
 5. **`UIManager.openAccountCard`** → **`ChartManager.setAccountCardFocus`** keeps chart emphasis and Y-axis hover labels aligned with open account cards.
 6. **`UIManager.formatCurrency`** is separate from the global `formatCurrency` in `format.js` — same idea, two call sites.
 7. **Savings end date:** after `endMonth` / `endDate`, an account freezes at that month’s balance but still adds that frozen value to Total Savings for the rest of the chart (when `includeInTotal` is true).
 8. **Savings `includeInTotal`:** when false, the account still gets its own chart line but is omitted from Total Savings / net worth (earmarked spend such as vacation).
+9. **Entity `balanceOverrides`:** `{ "YYYY-MM": amount }` on each loan/savings account. Applied as that month’s ending balance inside growth/amortization (and `*BalanceAsOf`); later months continue from the overridden value. Distinct from global `savings.financialOverrides` (totals only). Account-card Save must merge `balanceOverrides` from the existing entity because the edit form does not include that map.
 
 ## Loose-leaf line grid invariant (load-bearing)
 
@@ -138,14 +139,14 @@ Implementation lives in `js/drawer.js` with styles in `css/drawer.css`.
 - Each field: `key`, `label`, `type`, surface flags (`form` / `table` / `detail` / `export` / `import`), optional `domId`, `default`, `formOrder` / `tableOrder` / `detailOrder`, `computed` + `compute(entity, ctx)`, `exportValue`, `display`.
 - Computed fields (e.g. loan `remainingBalance`, savings `currentBalance` as of today) must not be form/export/import; resolve at render via `compute` and `ctx.calculator`.
 - Use `field-model.js` helpers for serialize/hydrate/render — do not hardcode parallel column/form lists in the UI.
-- Next entity (overrides, …): add its `*_FIELDS` + wire the same helpers; do not fork entity-only render paths.
+- Entity `balanceOverrides` lives on `LOAN_FIELDS` / `SAVINGS_FIELDS` (export/import only — calendar UI owns editing). Global net-worth overrides stay on `DataManager.overrides`, not a `*_FIELDS` entity.
 - When adding or changing a schema / computed field / export shape: extend `tests/field-model.mjs` (or a sibling unit file) and run `npm run test:unit` before considering the change done.
 
 ## Tests (verify changes here)
 
 | Command | What | Needs Chrome |
 |---------|------|--------------|
-| `npm run test:unit` | `tests/field-model.mjs` — field-model helpers, `LOAN_FIELDS` / `SAVINGS_FIELDS` surfaces/order, serialize/hydrate, `remainingBalanceAsOf`, `savingsBalanceAsOf`, form render | No |
+| `npm run test:unit` | `tests/field-model.mjs` — field-model helpers, `LOAN_FIELDS` / `SAVINGS_FIELDS` surfaces/order, serialize/hydrate, `remainingBalanceAsOf`, `savingsBalanceAsOf`, entity `balanceOverrides`, form render | No |
 | `npm run test:ui` | `tests/loose-leaf-alignment.mjs` — loans loose-leaf row grid | Yes (`CHROME_PATH` if needed) |
 | `npm test` | Both suites via `tests/run.mjs` | Yes (for the UI suite) |
 

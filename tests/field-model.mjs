@@ -1,7 +1,7 @@
 /**
  * Unit tests for field-model helpers, LOAN_FIELDS / SAVINGS_FIELDS surfaces,
  * JSON serialize/hydrate, FinanceCalculator.remainingBalanceAsOf, and
- * savingsBalanceAsOf (including end-date freeze).
+ * savingsBalanceAsOf (including end-date freeze and entity balanceOverrides).
  *
  * Run: npm run test:unit  (or npm test)
  * No Chrome required.
@@ -121,9 +121,15 @@ assert(!Object.prototype.hasOwnProperty.call(exported, 'remainingBalance'),
 assert(!Object.prototype.hasOwnProperty.call(exported, 'id'), 'export omits id');
 assertEqual(
     Object.keys(exported).sort(),
-    ['amount', 'isCustomPayment', 'monthlyPayment', 'name', 'rate', 'startDate', 'startMonth', 'term'].sort(),
+    ['amount', 'balanceOverrides', 'isCustomPayment', 'monthlyPayment', 'name', 'rate', 'startDate', 'startMonth', 'term'].sort(),
     'export key set'
 );
+assertEqual(exported.balanceOverrides, {}, 'export empty balanceOverrides by default');
+
+const loanOverrideField = LOAN_FIELDS.find((f) => f.key === 'balanceOverrides');
+assert(loanOverrideField?.export && loanOverrideField?.import, 'loan balanceOverrides is export/import');
+assert(!loanOverrideField.form && !loanOverrideField.table && !loanOverrideField.detail,
+    'loan balanceOverrides stays off form/table/detail');
 
 const customExported = serializeEntity(
     { ...sampleLoan, isCustomPayment: true, monthlyPayment: 2000 },
@@ -277,9 +283,27 @@ assert(!Object.prototype.hasOwnProperty.call(exportedSavings, 'currentBalance'),
 assert(!Object.prototype.hasOwnProperty.call(exportedSavings, 'id'), 'export omits savings id');
 assertEqual(
     Object.keys(exportedSavings).sort(),
-    ['amount', 'endDate', 'endMonth', 'includeInTotal', 'monthlyContribution', 'name', 'rate', 'startDate', 'startMonth'].sort(),
+    ['amount', 'balanceOverrides', 'endDate', 'endMonth', 'includeInTotal', 'monthlyContribution', 'name', 'rate', 'startDate', 'startMonth'].sort(),
     'savings export key set'
 );
+assertEqual(exportedSavings.balanceOverrides, {}, 'savings export empty balanceOverrides by default');
+
+const savingsOverrideField = SAVINGS_FIELDS.find((f) => f.key === 'balanceOverrides');
+assert(savingsOverrideField?.export && savingsOverrideField?.import, 'savings balanceOverrides is export/import');
+assert(!savingsOverrideField.form && !savingsOverrideField.table && !savingsOverrideField.detail,
+    'savings balanceOverrides stays off form/table/detail');
+
+const exportedWithOverrides = serializeEntity(
+    { ...sampleSavings, balanceOverrides: { '2024-06': 12500 } },
+    SAVINGS_FIELDS
+);
+assertEqual(exportedWithOverrides.balanceOverrides, { '2024-06': 12500 }, 'export savings balanceOverrides map');
+
+const hydratedWithOverrides = hydrateEntity(
+    { amount: 1000, balanceOverrides: { '2025-01': 2000, bad: 3 } },
+    SAVINGS_FIELDS
+);
+assertEqual(hydratedWithOverrides.balanceOverrides['2025-01'], 2000, 'hydrate keeps YYYY-MM override');
 
 const excludedExported = serializeEntity(
     { ...sampleSavings, includeInTotal: false },
@@ -344,6 +368,31 @@ const ongoingPastFreezePoint = calc.savingsBalanceAsOf(
 );
 assertClose(ongoingPastFreezePoint, 1600, 'ongoing savings keeps growing past where freeze would be');
 
+// balanceOverrides: Mar forced to 2000 → Apr grows +100 → 2100
+const overriddenSavings = calc.savingsBalanceAsOf(
+    {
+        amount: 1000,
+        monthlyContribution: 100,
+        rate: 0,
+        startDate: '2026-01',
+        balanceOverrides: { '2026-03': 2000 },
+    },
+    new Date(2026, 3, 15) // April
+);
+assertClose(overriddenSavings, 2100, 'savings balanceOverrides reset ending balance and affect later months');
+
+const overriddenLoan = calc.remainingBalanceAsOf(
+    {
+        amount: 12000,
+        rate: 0,
+        monthlyPayment: 1000,
+        startDate: '2026-01',
+        balanceOverrides: { '2026-02': 5000 },
+    },
+    new Date(2026, 2, 15) // March: Feb override 5000, then one $1000 payment
+);
+assertClose(overriddenLoan, 4000, 'loan balanceOverrides reset ending balance and affect later months');
+
 {
     const states = [
         {
@@ -358,6 +407,25 @@ assertClose(ongoingPastFreezePoint, 1600, 'ongoing savings keeps growing past wh
     const step = calc.calculateSavingsBalances(states, 1);
     assertClose(step.totalBalance, 1000, 'includeInTotal false omitted from total');
     assertClose(states[1].balance, 500, 'excluded account still tracks its own balance');
+}
+
+{
+    const baseDate = new Date(2026, 0, 1);
+    const states = [{
+        amount: 1000,
+        monthlyContribution: 0,
+        rate: 0,
+        startMonth: 1,
+        includeInTotal: true,
+        balanceOverrides: { '2026-01': 2500 },
+        balance: 0,
+        started: false,
+        endMonth: null,
+        cumulativeInterest: 0,
+        cumulativeContributions: 0
+    }];
+    const step = calc.calculateSavingsBalances(states, 1, baseDate);
+    assertClose(step.totalBalance, 2500, 'calculateSavingsBalances applies balanceOverrides');
 }
 
 const balanceViaSavingsSchema = getFieldDisplayValue(currentBalanceField, sampleSavings, {
