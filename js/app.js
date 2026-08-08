@@ -1,9 +1,11 @@
 /**
  * Main orchestrator: wires components, owns chart lifecycle, exposes HTML onclick globals.
- * Defines globals: FinanceApp, app / window.app, addLoan, removeLoan, showLoanAccountCard,
- *   closeLoanAccountCard, showAddLoanForm, closeAddLoanForm, addSavingsAccount, removeSavingsAccount,
- *   showSavingsAccountCard, closeSavingsAccountCard, closeAccountCard, showAddSavingsForm, closeAddSavingsForm,
- *   clearAllLoans, exportToJSON,
+ * Defines globals: FinanceApp, app / window.app, addLoan, removeLoan, confirmRemoveLoan,
+ *   showLoanAccountCard, closeLoanAccountCard, showAddLoanForm, closeAddLoanForm,
+ *   addSavingsAccount, removeSavingsAccount, confirmRemoveSavingsAccount,
+ *   showSavingsAccountCard, closeSavingsAccountCard, closeAccountCard,
+ *   editAccountCard, saveAccountCard, cancelEditAccountCard,
+ *   showAddSavingsForm, closeAddSavingsForm, clearAllLoans, exportToJSON,
  *   importFromJSON, showNetWorthOverrides, closeNetWorthOverrides,
  *   addNetWorthOverrideFromForm, removeNetWorthOverride,
  *   highlightChartLoan, highlightChartSavings, clearChartListHover
@@ -198,6 +200,13 @@ class FinanceApp {
         }
     }
 
+    confirmRemoveSavingsAccount(accountId) {
+        const account = this.dataManager.getSavingsAccountById(accountId);
+        const label = (account && account.name && String(account.name).trim()) || 'this savings account';
+        if (!confirm(`Remove ${label}? This cannot be undone.`)) return;
+        this.removeSavingsAccount(accountId);
+    }
+
     showSavingsAccountCard(accountId) {
         const account = this.dataManager.getSavingsAccountById(accountId);
         if (!account) return;
@@ -218,6 +227,13 @@ class FinanceApp {
         }
     }
 
+    confirmRemoveLoan(loanId) {
+        const loan = this.dataManager.getLoanById(loanId);
+        const label = (loan && loan.name && String(loan.name).trim()) || 'this loan';
+        if (!confirm(`Remove ${label}? This cannot be undone.`)) return;
+        this.removeLoan(loanId);
+    }
+
     showLoanAccountCard(loanId) {
         const loan = this.dataManager.getLoanById(loanId);
         if (!loan) return;
@@ -226,6 +242,52 @@ class FinanceApp {
 
     closeLoanAccountCard(loanId) {
         this.uiManager.closeLoanAccountCard(loanId);
+    }
+
+    editAccountCard(key) {
+        this.uiManager.editAccountCard(key);
+    }
+
+    cancelEditAccountCard(key) {
+        this.uiManager.cancelEditAccountCard(key);
+    }
+
+    saveAccountCard(key) {
+        const entry = this.uiManager.openAccountCards.get(key);
+        if (!entry || !entry.editing) return;
+
+        const idPrefix = this.uiManager.accountCardFormIdPrefix(key);
+
+        if (entry.kind === 'loan') {
+            const loanData = this.uiManager.getLoanFormData({ idPrefix, skipEnsure: true });
+            if (!loanData) return;
+
+            const updated = this.dataManager.updateLoan(entry.entityId, loanData);
+            if (!updated) return;
+
+            this.uiManager.updateLoansList(this.dataManager.getLoans());
+            this.uiManager.refreshAccountCard(key);
+            this.updateChart();
+            if (typeof resetFolderSheetRaise === 'function') {
+                resetFolderSheetRaise();
+            }
+            return;
+        }
+
+        if (entry.kind === 'savings') {
+            const accountData = this.uiManager.getSavingsFormData({ idPrefix, skipEnsure: true });
+            if (!accountData) return;
+
+            const updated = this.dataManager.updateSavingsAccount(entry.entityId, accountData);
+            if (!updated) return;
+
+            this.uiManager.updateSavingsList(this.dataManager.getSavingsAccounts());
+            this.uiManager.refreshAccountCard(key);
+            this.updateChart();
+            if (typeof resetFolderSheetRaise === 'function') {
+                resetFolderSheetRaise();
+            }
+        }
     }
     
     clearAllLoans() {
@@ -308,6 +370,9 @@ function addLoan() {
 function removeLoan(id) { 
     if (app) app.removeLoan(id); 
 }
+function confirmRemoveLoan(id) {
+    if (app) app.confirmRemoveLoan(id);
+}
 function showLoanAccountCard(id) {
     if (app) app.showLoanAccountCard(id);
 }
@@ -316,6 +381,15 @@ function closeLoanAccountCard(id) {
 }
 function closeAccountCard(key) {
     if (app) app.uiManager.closeAccountCard(key);
+}
+function editAccountCard(key) {
+    if (app) app.editAccountCard(key);
+}
+function saveAccountCard(key) {
+    if (app) app.saveAccountCard(key);
+}
+function cancelEditAccountCard(key) {
+    if (app) app.cancelEditAccountCard(key);
 }
 function showAddLoanForm() {
     if (app) app.showAddLoanForm();
@@ -328,6 +402,9 @@ function addSavingsAccount() {
 }
 function removeSavingsAccount(id) {
     if (app) app.removeSavingsAccount(id);
+}
+function confirmRemoveSavingsAccount(id) {
+    if (app) app.confirmRemoveSavingsAccount(id);
 }
 function showSavingsAccountCard(id) {
     if (app) app.showSavingsAccountCard(id);

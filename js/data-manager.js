@@ -5,8 +5,8 @@
  *   default_config/example-default-loans.js (DEFAULT_EXAMPLE_DATA);
  *   DOM projection/chart-header fields when exporting (#startDate, #timePeriod, #goalAmount,
  *   #chartTitle, etc.)
- * Owns: loans[], savingsAccounts[], financialOverrides[]; createLoan / addLoan / removeLoan;
- *   createSavingsAccount / addSavingsAccount / removeSavingsAccount;
+ * Owns: loans[], savingsAccounts[], financialOverrides[]; createLoan / addLoan / updateLoan / removeLoan;
+ *   createSavingsAccount / addSavingsAccount / updateSavingsAccount / removeSavingsAccount;
  *   exportData / importData; loadDefaultExampleIfNeeded (DEFAULT_EXAMPLE_DATA)
  *
  * Field schemas live with their owner store. LOAN_FIELDS / SAVINGS_FIELDS drive
@@ -467,6 +467,19 @@ class DataManager {
     removeLoan(loanId) {
         this.loans = this.loans.filter(loan => loan.id !== loanId);
     }
+
+    /** Replace an existing loan; keeps id. Returns null if missing or createLoan cancelled. */
+    updateLoan(loanId, loanData) {
+        const index = this.loans.findIndex(loan => loan.id === loanId);
+        if (index < 0) return null;
+
+        const updated = this.createLoan(loanData);
+        if (!updated) return null;
+
+        updated.id = loanId;
+        this.loans[index] = updated;
+        return updated;
+    }
     
     clearAllLoans() {
         this.loans = [];
@@ -523,6 +536,17 @@ class DataManager {
 
     removeSavingsAccount(accountId) {
         this.savingsAccounts = this.savingsAccounts.filter(account => account.id !== accountId);
+    }
+
+    /** Replace an existing savings account; keeps id. Returns null if missing. */
+    updateSavingsAccount(accountId, accountData) {
+        const index = this.savingsAccounts.findIndex(account => account.id === accountId);
+        if (index < 0) return null;
+
+        const updated = this.createSavingsAccount(accountData);
+        updated.id = accountId;
+        this.savingsAccounts[index] = updated;
+        return updated;
     }
 
     clearAllSavingsAccounts() {

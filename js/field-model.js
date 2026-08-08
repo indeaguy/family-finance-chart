@@ -2,7 +2,7 @@
  * Reusable field-schema helpers: filter by surface, format/parse, serialize/hydrate,
  * and render form / table / detail markup from a field array.
  * Defines globals: filterFields, formatFieldValue, readFormValue, getFieldDisplayValue,
- *   serializeEntity, hydrateEntity, renderFormFields, renderTable, renderDetailRows
+ *   serializeEntity, hydrateEntity, formFieldDomId, renderFormFields, renderTable, renderDetailRows
  * Depends on: none (schemas + compute ctx are provided by callers)
  *
  * Field shape (per entity schema, e.g. LOAN_FIELDS):
@@ -144,12 +144,18 @@ function inputTypeForField(field) {
     }
 }
 
-function renderFormFields(container, fields) {
+/** DOM id for a form field; optional idPrefix scopes inputs (e.g. account cards). */
+function formFieldDomId(field, idPrefix = '') {
+    return `${idPrefix || ''}${field.domId || field.key}`;
+}
+
+function renderFormFields(container, fields, options = {}) {
     if (!container) return;
 
+    const idPrefix = options.idPrefix || '';
     const formFields = filterFields(fields, 'form');
     container.innerHTML = formFields.map(field => {
-        const id = field.domId || field.key;
+        const id = formFieldDomId(field, idPrefix);
         const label = field.formLabel || field.label;
         const inputType = inputTypeForField(field);
         const attrs = field.inputAttrs || {};

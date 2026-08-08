@@ -14,7 +14,7 @@
 const INDIVIDUAL_LOAN_LINES = {
     enabled: true,
     lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dotted,
+    lineStyle: LightweightCharts.LineStyle.Solid,
     showLegendTitle: true,
     priceLineVisible: false,
     lastValueVisible: false
@@ -24,7 +24,7 @@ const INDIVIDUAL_LOAN_LINES = {
 const INDIVIDUAL_SAVINGS_LINES = {
     enabled: true,
     lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dotted,
+    lineStyle: LightweightCharts.LineStyle.Solid,
     showLegendTitle: true,
     priceLineVisible: false,
     lastValueVisible: false

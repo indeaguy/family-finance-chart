@@ -16,8 +16,9 @@
  *   (closeNetWorthOverrides, closeAddLoanForm, closeAddSavingsForm);
  *   DOM: #drawer, .drawer-handle, .pencil, .pencil-barrel-roll,
  *   #netWorthOverridesModal, #chartHeaderModal, #addLoanModal, #addSavingsModal,
- *   #summaryOverlay. Account cards (#accountCardsRoot) do not block drawer close;
- *   open/close/resize re-pin them via UIManager.syncAccountCardAnchorPosition.
+ *   #summaryOverlay, #accountCardsRoot. Clicks on account cards do not close the
+ *   drawer (no backdrop — chart/elsewhere still does); open/close/resize re-pin
+ *   cards via UIManager.syncAccountCardAnchorPosition.
  */
 
 /** Must stay in sync with `.drawer-container { transition: transform … }` */
@@ -353,6 +354,7 @@ window.addEventListener('resize', () => {
 document.addEventListener('click', function(e) {
     const drawer = document.getElementById('drawer');
     const handle = document.querySelector('.drawer-handle');
+    const accountCardsRoot = document.getElementById('accountCardsRoot');
     const netWorthModal = document.getElementById('netWorthOverridesModal');
     const chartHeaderModal = document.getElementById('chartHeaderModal');
     const addLoanModal = document.getElementById('addLoanModal');
@@ -363,8 +365,9 @@ document.addEventListener('click', function(e) {
         (modal) => modal && (modal.style.display === 'block' || modal.style.display === 'flex' || modal.classList.contains('is-open'))
     );
     
-    // Close drawer when clicking outside drawer and handle (not while a modal is open)
-    if (!modalOpen && drawer && handle && !drawer.contains(e.target) && !handle.contains(e.target)) {
+    // Close drawer when clicking outside drawer, handle, and account cards (not while a modal is open)
+    const onAccountCard = accountCardsRoot && accountCardsRoot.contains(e.target);
+    if (!modalOpen && drawer && handle && !drawer.contains(e.target) && !handle.contains(e.target) && !onAccountCard) {
         closeDrawer();
     }
     

@@ -221,6 +221,12 @@ assert(
     'form renders six input rows'
 );
 
+const prefixed = { innerHTML: '' };
+renderFormFields(prefixed, LOAN_FIELDS, { idPrefix: 'ac-loan-1-' });
+assert(prefixed.innerHTML.includes('id="ac-loan-1-loanName"'), 'form idPrefix scopes loanName');
+assert(prefixed.innerHTML.includes('for="ac-loan-1-loanAmount"'), 'form idPrefix scopes label for');
+assert(!prefixed.innerHTML.includes('id="loanName"'), 'prefixed form does not use bare loanName id');
+
 // --- SAVINGS_FIELDS surfaces / order ---
 
 assert(Array.isArray(SAVINGS_FIELDS) && SAVINGS_FIELDS.length > 0, 'SAVINGS_FIELDS loaded');

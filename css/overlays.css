@@ -270,7 +270,7 @@
     display: flex;
 }
 
-/* Account cards (read-only loan/savings sheets) — no backdrop; anchor near
+/* Account cards (loan/savings sheets; .is-editing reveals Remove) — no backdrop; anchor near
    #accountCardAnchor (drawer control-group left of the folder). JS sets
    --account-card-left / --account-card-top from that slot’s box. */
 #accountCardsRoot {
@@ -357,6 +357,15 @@
 .loose-leaf-sheet .loan-detail-actions {
     justify-content: flex-start;
     gap: 16px;
+}
+
+/* Remove stays in the actions row but only shows while the account card is editing. */
+.account-card .account-card-remove-btn {
+    display: none !important;
+}
+
+.account-card.is-editing .account-card-remove-btn {
+    display: inline-block !important;
 }
 
 /* Modal styles */

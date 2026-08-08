@@ -1,16 +1,17 @@
 /**
  * Form collection/validation, loans/savings lists (ruled-row grids), add modals,
- * account cards (read-only loan/savings sheets), JSON download.
+ * account cards (loan/savings sheets; view or edit), JSON download.
  * Defines globals: UIManager
  * Depends on: LOAN_FIELDS, SAVINGS_FIELDS + field-model helpers (renderFormFields, renderTable,
- *   renderDetailRows, filterFields, readFormValue); DOM #addLoanFormFields, #loansList,
+ *   renderDetailRows, filterFields, readFormValue, formFieldDomId); DOM #addLoanFormFields, #loansList,
  *   #addLoanModal, #accountCardsRoot, #accountCardTemplate, #accountCardAnchor,
  *   #addSavingsFormFields, #savingsList, #addSavingsModal, projection fields for
  *   loadDataToForm (#startDate, #timePeriod, #goalAmount); formatCurrency is a method
  *   here (separate from format.js globals used by the summary overlay)
  *
- * Domain: "account card" = read-only floating sheet for one loan or savings account
+ * Domain: "account card" = floating sheet for one loan or savings account
  * (#accountCardsRoot / #accountCardTemplate / .account-card / openAccountCard).
+ * View mode is detail rows; Edit swaps in form fields and reveals Remove (confirm before delete).
  * Position: aligned to #accountCardAnchor (drawer .control-group left of the folder).
  */
 
@@ -25,10 +26,14 @@ class UIManager {
         this.currentChartData = [];
         this.loanFormBuilt = false;
         this.savingsFormBuilt = false;
-        /** @type {Map<string, { el: HTMLElement, kind: string, entityId: number, staggerIndex: number }>} open account cards */
+        /** @type {Map<string, { el: HTMLElement, kind: string, entityId: number, staggerIndex: number, editing: boolean }>} open account cards */
         this.openAccountCards = new Map();
         this.accountCardFrontZ = 1100;
         this._accountCardAnchorBound = false;
+    }
+
+    accountCardFormIdPrefix(cardKey) {
+        return `ac-${String(cardKey).replace(/[^a-zA-Z0-9-]/g, '-')}-`;
     }
 
     /** Keep open cards pinned to #accountCardAnchor while that slot is on-screen. */
@@ -97,8 +102,10 @@ class UIManager {
     }
     
     // Form Data Management
-    getLoanFormData() {
-        this.ensureLoanFormFields();
+    /** @param {{ idPrefix?: string, skipEnsure?: boolean }} [options] */
+    getLoanFormData(options = {}) {
+        const idPrefix = options.idPrefix || '';
+        if (!idPrefix && !options.skipEnsure) this.ensureLoanFormFields();
 
         const amountField = LOAN_FIELDS.find(f => f.key === 'amount');
         const nameField = LOAN_FIELDS.find(f => f.key === 'name');
@@ -107,12 +114,13 @@ class UIManager {
         const startField = LOAN_FIELDS.find(f => f.key === 'startDate');
         const paymentField = LOAN_FIELDS.find(f => f.key === 'monthlyPayment');
 
-        const amount = readFormValue(amountField, document.getElementById(amountField.domId)) || 0;
-        const name = readFormValue(nameField, document.getElementById(nameField.domId));
-        const rate = readFormValue(rateField, document.getElementById(rateField.domId)) || 0;
-        const term = readFormValue(termField, document.getElementById(termField.domId)) || 1;
-        const startDate = readFormValue(startField, document.getElementById(startField.domId));
-        const customPayment = readFormValue(paymentField, document.getElementById(paymentField.domId)) || 0;
+        const el = (field) => document.getElementById(formFieldDomId(field, idPrefix));
+        const amount = readFormValue(amountField, el(amountField)) || 0;
+        const name = readFormValue(nameField, el(nameField));
+        const rate = readFormValue(rateField, el(rateField)) || 0;
+        const term = readFormValue(termField, el(termField)) || 1;
+        const startDate = readFormValue(startField, el(startField));
+        const customPayment = readFormValue(paymentField, el(paymentField)) || 0;
         
         if (amount <= 0) {
             alert('Please enter a valid loan amount');
@@ -237,8 +245,10 @@ class UIManager {
         });
     }
 
-    getSavingsFormData() {
-        this.ensureSavingsFormFields();
+    /** @param {{ idPrefix?: string, skipEnsure?: boolean }} [options] */
+    getSavingsFormData(options = {}) {
+        const idPrefix = options.idPrefix || '';
+        if (!idPrefix && !options.skipEnsure) this.ensureSavingsFormFields();
 
         const amountField = SAVINGS_FIELDS.find(f => f.key === 'amount');
         const nameField = SAVINGS_FIELDS.find(f => f.key === 'name');
@@ -248,13 +258,14 @@ class UIManager {
         const endField = SAVINGS_FIELDS.find(f => f.key === 'endDate');
         const includeField = SAVINGS_FIELDS.find(f => f.key === 'includeInTotal');
 
-        const amount = readFormValue(amountField, document.getElementById(amountField.domId)) || 0;
-        const name = readFormValue(nameField, document.getElementById(nameField.domId));
-        const monthlyContribution = readFormValue(monthlyField, document.getElementById(monthlyField.domId)) || 0;
-        const rate = readFormValue(rateField, document.getElementById(rateField.domId)) || 0;
-        const startDate = readFormValue(startField, document.getElementById(startField.domId));
-        const endDate = readFormValue(endField, document.getElementById(endField.domId)) || '';
-        const includeInTotal = readFormValue(includeField, document.getElementById(includeField.domId));
+        const el = (field) => document.getElementById(formFieldDomId(field, idPrefix));
+        const amount = readFormValue(amountField, el(amountField)) || 0;
+        const name = readFormValue(nameField, el(nameField));
+        const monthlyContribution = readFormValue(monthlyField, el(monthlyField)) || 0;
+        const rate = readFormValue(rateField, el(rateField)) || 0;
+        const startDate = readFormValue(startField, el(startField));
+        const endDate = readFormValue(endField, el(endField)) || '';
+        const includeInTotal = readFormValue(includeField, el(includeField));
 
         if (amount < 0) {
             alert('Please enter a valid initial amount');
@@ -410,42 +421,162 @@ class UIManager {
         }
     }
 
-    buildLoanAccountCardBodyHtml(loan, cardKey) {
+    accountCardHeadingId(kind, cardKey) {
+        const safe = cardKey.replace(/[^a-zA-Z0-9-]/g, '-');
+        return kind === 'loan'
+            ? `loanAccountCardHeading-${safe}`
+            : `savingsAccountCardHeading-${safe}`;
+    }
+
+    getAccountCardEntity(kind, entityId) {
+        if (!window.app || !window.app.dataManager) return null;
+        return kind === 'loan'
+            ? window.app.dataManager.getLoanById(entityId)
+            : window.app.dataManager.getSavingsAccountById(entityId);
+    }
+
+    buildLoanAccountCardBodyHtml(loan, cardKey, { editing = false } = {}) {
+        const headingId = this.accountCardHeadingId('loan', cardKey);
+
+        if (editing) {
+            return `
+                <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(loan.name && String(loan.name).trim()) || 'Edit loan'}</div>
+                <div data-account-card-form></div>
+                <div class="sheet-ruled-row loan-detail-actions">
+                    <button type="button" class="sheet-inline-btn" onclick="saveAccountCard('${cardKey}')">Save</button>
+                    <button type="button" class="sheet-inline-btn sheet-danger-btn account-card-remove-btn" onclick="confirmRemoveLoan(${loan.id})">Remove</button>
+                    <button type="button" class="sheet-inline-btn" onclick="cancelEditAccountCard('${cardKey}')">Cancel</button>
+                </div>
+            `;
+        }
+
         const ctx = this.getLoanFieldContext();
         ctx.surface = 'detail';
 
         const extra = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
             ? `$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo`
             : '—';
-        const headingId = `loanAccountCardHeading-${cardKey.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
         return `
             <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(loan.name && String(loan.name).trim()) || 'Loan details'}</div>
             ${renderDetailRows(LOAN_FIELDS, loan, ctx)}
             <div class="sheet-ruled-row"><span class="detail-label">Extra / mo</span><span class="detail-value">${extra}</span></div>
             <div class="sheet-ruled-row loan-detail-actions">
-                <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeLoan(${loan.id})">Remove loan</button>
+                <button type="button" class="sheet-inline-btn" onclick="editAccountCard('${cardKey}')">Edit</button>
+                <button type="button" class="sheet-inline-btn sheet-danger-btn account-card-remove-btn" onclick="confirmRemoveLoan(${loan.id})">Remove</button>
                 <button type="button" class="sheet-inline-btn" onclick="closeAccountCard('${cardKey}')">Close</button>
             </div>
         `;
     }
 
-    buildSavingsAccountCardBodyHtml(account, cardKey) {
+    buildSavingsAccountCardBodyHtml(account, cardKey, { editing = false } = {}) {
+        const headingId = this.accountCardHeadingId('savings', cardKey);
+
+        if (editing) {
+            return `
+                <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(account.name && String(account.name).trim()) || 'Edit savings'}</div>
+                <div data-account-card-form></div>
+                <div class="sheet-ruled-row loan-detail-actions">
+                    <button type="button" class="sheet-inline-btn" onclick="saveAccountCard('${cardKey}')">Save</button>
+                    <button type="button" class="sheet-inline-btn sheet-danger-btn account-card-remove-btn" onclick="confirmRemoveSavingsAccount(${account.id})">Remove</button>
+                    <button type="button" class="sheet-inline-btn" onclick="cancelEditAccountCard('${cardKey}')">Cancel</button>
+                </div>
+            `;
+        }
+
         const ctx = this.getSavingsFieldContext();
         ctx.surface = 'detail';
-        const headingId = `savingsAccountCardHeading-${cardKey.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
         return `
             <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(account.name && String(account.name).trim()) || 'Savings details'}</div>
             ${renderDetailRows(SAVINGS_FIELDS, account, ctx)}
             <div class="sheet-ruled-row loan-detail-actions">
-                <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeSavingsAccount(${account.id})">Remove savings</button>
+                <button type="button" class="sheet-inline-btn" onclick="editAccountCard('${cardKey}')">Edit</button>
+                <button type="button" class="sheet-inline-btn sheet-danger-btn account-card-remove-btn" onclick="confirmRemoveSavingsAccount(${account.id})">Remove</button>
                 <button type="button" class="sheet-inline-btn" onclick="closeAccountCard('${cardKey}')">Close</button>
             </div>
         `;
     }
 
-    /** Open an account card (read-only) for one loan or savings account. */
+    fillAccountCardForm(fields, entity, idPrefix) {
+        filterFields(fields, 'form').forEach(field => {
+            const el = document.getElementById(formFieldDomId(field, idPrefix));
+            if (!el) return;
+
+            if (field.type === 'boolean') {
+                el.checked = entity[field.key] !== false;
+                return;
+            }
+
+            let value = entity[field.key];
+            if (field.key === 'monthlyPayment') {
+                value = entity.isCustomPayment ? entity.monthlyPayment : '';
+            }
+            if (value === null || value === undefined) value = '';
+            el.value = value;
+        });
+    }
+
+    renderAccountCardBody(entry) {
+        const key = this.accountCardKey(entry.kind, entry.entityId);
+        const entity = this.getAccountCardEntity(entry.kind, entry.entityId);
+        if (!entity) {
+            this.closeAccountCard(key);
+            return;
+        }
+
+        const body = entry.el.querySelector('.loose-leaf-sheet-body');
+        const sheet = entry.el.querySelector('.loose-leaf-sheet');
+        if (!body || !sheet) return;
+
+        const headingId = this.accountCardHeadingId(entry.kind, key);
+        body.innerHTML = entry.kind === 'loan'
+            ? this.buildLoanAccountCardBodyHtml(entity, key, { editing: entry.editing })
+            : this.buildSavingsAccountCardBodyHtml(entity, key, { editing: entry.editing });
+        sheet.setAttribute('aria-labelledby', headingId);
+
+        if (entry.editing) {
+            const formHost = body.querySelector('[data-account-card-form]');
+            const fields = entry.kind === 'loan' ? LOAN_FIELDS : SAVINGS_FIELDS;
+            const idPrefix = this.accountCardFormIdPrefix(key);
+            renderFormFields(formHost, fields, { idPrefix });
+            this.fillAccountCardForm(fields, entity, idPrefix);
+            if (entry.kind === 'loan') {
+                this.updateLoanPaymentPlaceholder(idPrefix);
+                ['loanAmount', 'loanRate', 'loanTerm'].forEach(domId => {
+                    const input = document.getElementById(idPrefix + domId);
+                    if (input) input.addEventListener('input', () => this.updateLoanPaymentPlaceholder(idPrefix));
+                });
+            }
+        }
+
+        entry.el.classList.toggle('is-editing', !!entry.editing);
+    }
+
+    editAccountCard(key) {
+        const entry = this.openAccountCards.get(key);
+        if (!entry || entry.editing) return;
+        entry.editing = true;
+        this.bringAccountCardToFront(key);
+        this.renderAccountCardBody(entry);
+    }
+
+    cancelEditAccountCard(key) {
+        const entry = this.openAccountCards.get(key);
+        if (!entry || !entry.editing) return;
+        entry.editing = false;
+        this.renderAccountCardBody(entry);
+    }
+
+    /** Re-render an open card after save (exits edit) or external data change. */
+    refreshAccountCard(key) {
+        const entry = this.openAccountCards.get(key);
+        if (!entry) return;
+        entry.editing = false;
+        this.renderAccountCardBody(entry);
+    }
+
+    /** Open an account card for one loan or savings account. */
     openAccountCard(kind, entity) {
         if (!entity || !entity.id) return;
 
@@ -467,21 +598,14 @@ class UIManager {
         const closeBtn = card.querySelector('.loose-leaf-sheet-x');
         if (!sheet || !body || !closeBtn) return;
 
-        const headingId = kind === 'loan'
-            ? `loanAccountCardHeading-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`
-            : `savingsAccountCardHeading-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`;
-
-        body.innerHTML = kind === 'loan'
-            ? this.buildLoanAccountCardBodyHtml(entity, key)
-            : this.buildSavingsAccountCardBodyHtml(entity, key);
-
-        sheet.setAttribute('aria-labelledby', headingId);
         closeBtn.addEventListener('click', () => closeAccountCard(key));
         card.addEventListener('mousedown', () => this.bringAccountCardToFront(key));
 
         root.appendChild(card);
         const staggerIndex = this.openAccountCards.size % ACCOUNT_CARD_STAGGER_WRAP;
-        this.openAccountCards.set(key, { el: card, kind, entityId: entity.id, staggerIndex });
+        const entry = { el: card, kind, entityId: entity.id, staggerIndex, editing: false };
+        this.openAccountCards.set(key, entry);
+        this.renderAccountCardBody(entry);
         this.ensureAccountCardAnchorTracking();
         this.applyAccountCardStagger();
         this.bringAccountCardToFront(key);
@@ -565,13 +689,14 @@ class UIManager {
     }
     
     // Loan Payment Placeholder
-    updateLoanPaymentPlaceholder() {
-        this.ensureLoanFormFields();
+    /** @param {string} [idPrefix] scoped prefix for account-card loan inputs */
+    updateLoanPaymentPlaceholder(idPrefix = '') {
+        if (!idPrefix) this.ensureLoanFormFields();
 
-        const amount = parseFloat(document.getElementById('loanAmount')?.value) || 0;
-        const rate = parseFloat(document.getElementById('loanRate')?.value) || 0;
-        const term = parseInt(document.getElementById('loanTerm')?.value, 10) || 1;
-        const paymentInput = document.getElementById('loanMonthlyPayment');
+        const amount = parseFloat(document.getElementById(idPrefix + 'loanAmount')?.value) || 0;
+        const rate = parseFloat(document.getElementById(idPrefix + 'loanRate')?.value) || 0;
+        const term = parseInt(document.getElementById(idPrefix + 'loanTerm')?.value, 10) || 1;
+        const paymentInput = document.getElementById(idPrefix + 'loanMonthlyPayment');
         
         if (!paymentInput) return;
         
