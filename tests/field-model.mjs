@@ -438,6 +438,93 @@ assert(
     `currentBalance display is currency string, got ${balanceViaSavingsSchema}`
 );
 
+// Total Loan Balance must not include loans before their startMonth (chart rewind case).
+{
+    const lateLoanCalc = new FinanceCalculator();
+    lateLoanCalc.setDataManager({
+        getLoans: () => [{
+            id: 1,
+            name: 'Later Loan',
+            amount: 10000,
+            rate: 0,
+            term: 12,
+            startMonth: 13,
+            startDate: '2021-01',
+            monthlyPayment: 1000,
+            isCustomPayment: true,
+            balanceOverrides: {}
+        }],
+        getSavingsAccounts: () => [{
+            id: 2,
+            name: 'Early Savings',
+            amount: 1000,
+            monthlyContribution: 0,
+            rate: 0,
+            startMonth: 1,
+            startDate: '2020-01',
+            endMonth: null,
+            includeInTotal: true,
+            balanceOverrides: {}
+        }],
+        getOverrides: () => ({})
+    });
+    const results = lateLoanCalc.performCalculations({
+        years: 3,
+        goalAmount: 0,
+        startDate: '2020-01'
+    });
+    const beforeLoan = results.data.filter((d) => d.month < 13);
+    assert(
+        beforeLoan.every((d) => d.loanBalance === 0),
+        'loanBalance is 0 in data points before loan startMonth'
+    );
+    assertEqual(results.loanBalanceData.length > 0, true, 'Total Loan Balance starts once loan begins');
+    const loanStartPoint = results.data.find((d) => d.month === 13);
+    assert(loanStartPoint, 'month 13 data point exists');
+    assertEqual(
+        results.loanBalanceData[0].time,
+        loanStartPoint.timestamp,
+        'Total Loan Balance series begins at loan startMonth'
+    );
+    assertClose(results.loanBalanceData[0].value, 9000, 'first loan month amortizes (0% rate → payment cuts principal)');
+    assert(results.savingsData.length > 0, 'Total Savings has points while savings active');
+    assertClose(results.savingsData[0].value, 1000, 'Total Savings starts at account balance');
+}
+
+// Total Savings series omits leading months before any account has started.
+{
+    const lateSavCalc = new FinanceCalculator();
+    lateSavCalc.setDataManager({
+        getLoans: () => [],
+        getSavingsAccounts: () => [{
+            id: 3,
+            name: 'Later Savings',
+            amount: 2000,
+            monthlyContribution: 0,
+            rate: 0,
+            startMonth: 6,
+            startDate: '2020-06',
+            endMonth: null,
+            includeInTotal: true,
+            balanceOverrides: {}
+        }],
+        getOverrides: () => ({})
+    });
+    const results = lateSavCalc.performCalculations({
+        years: 2,
+        goalAmount: 0,
+        startDate: '2020-01'
+    });
+    const savStartPoint = results.data.find((d) => d.month === 6);
+    assert(savStartPoint, 'month 6 data point exists');
+    assertEqual(
+        results.savingsData[0].time,
+        savStartPoint.timestamp,
+        'Total Savings series begins at first account startMonth'
+    );
+    assertEqual(results.loanBalanceData.length, 0, 'no loan series without loans');
+}
+
 const savingsForm = { innerHTML: '' };
 renderFormFields(savingsForm, SAVINGS_FIELDS);
 assert(savingsForm.innerHTML.includes('id="savingsName"'), 'form renders savingsName');

@@ -123,7 +123,11 @@ class FinanceCalculator {
             
             // Store data
             data.push(dataPoint);
-            savingsData.push({ time: dataPoint.timestamp, value: currentSavings });
+            // Totals only appear once something has started (avoid a flat zero / phantom
+            // principal line from chart month 1 when accounts begin later).
+            if (currentSavings > 0 || savingsData.length > 0) {
+                savingsData.push({ time: dataPoint.timestamp, value: currentSavings });
+            }
             netWorthData.push({ time: dataPoint.timestamp, value: netWorth });
             netWorthOriginalData.push({ time: dataPoint.timestamp, value: netWorth });
             
@@ -147,8 +151,11 @@ class FinanceCalculator {
                 });
             });
             
-            // Only add loan balance data if there's a balance
-            if (totalLoanBalance > 0 || (month > 1 && data[month-2].loanBalance > 0)) {
+            // Start when any loan is active; include the drop to 0 after payoff, then stop.
+            const priorLoanPoint = loanBalanceData.length > 0
+                ? loanBalanceData[loanBalanceData.length - 1].value
+                : 0;
+            if (totalLoanBalance > 0 || priorLoanPoint > 0) {
                 loanBalanceData.push({ time: dataPoint.timestamp, value: totalLoanBalance });
             }
             
@@ -296,8 +303,10 @@ class FinanceCalculator {
                     loan.payoffMonth = null;
                 }
             }
-            
-            if (loan.remainingBalance > 0) {
+
+            // Pre-start loans keep remainingBalance = principal for when they begin;
+            // do not count them toward totals (or the Total Loan Balance line starts early).
+            if (month >= loan.startMonth && loan.remainingBalance > 0) {
                 totalBalance += loan.remainingBalance;
             }
         });

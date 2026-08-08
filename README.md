@@ -21,9 +21,9 @@ A simple web application to visualize financial growth over time, including comp
    - Click the rolling pencil **Add Savings** button to open the loose-leaf form
    - Fields: name, initial amount, monthly contribution, interest rate, start date, optional end date, and whether it counts toward Total Savings
    - Uncheck **Include in Total Savings** for earmarked spend (vacation, gifts) — the line still charts, but stays out of the total
-   - Active savings fill the sheet as ruled rows — click a row to open its **account card** (details; **Edit** to change fields or open **Date overrides** for monthly balance overrides, then **Remove** with confirm) beside the drawer control-group left of the folder; excluded accounts show `(excl.)` in the name
+   - Active savings fill the sheet as ruled rows — click a row to open its **account card** (details; **Edit** to change fields, open **Date overrides**, or **Import history** from CSV/OFX/QIF, then **Remove** with confirm) beside the drawer control-group left of the folder; excluded accounts show `(excl.)` in the name
 3. Switch to the manila **Loans** folder tab:
-   - Pencil becomes **Add Loan**; active loans use the same ruled-row sheet pattern; click a row for that loan’s account card (Edit / Date overrides / confirmed Remove, same left-of-folder placement)
+   - Pencil becomes **Add Loan**; active loans use the same ruled-row sheet pattern; click a row for that loan’s account card (Edit / Date overrides / Import history / confirmed Remove, same left-of-folder placement)
    - Scroll over the folder to raise the loose-leaf when rows are clipped
 
 4. The chart will show multiple lines:
@@ -48,6 +48,13 @@ A simple web application to visualize financial growth over time, including comp
 - Older JSON files that still use a single `savings.initialAmount` / `monthlySavings` / `interestRate` block are imported as one savings account
 - Import `example.json` for a sample scenario (legacy singular savings + three loans)
 
+#### Historical balance import
+- From an account card **Edit** (or **Date overrides**), use **Import history** to load CSV, OFX/QFX, or QIF balance data
+- The last available date in each month becomes that month’s date override; import merges with existing overrides
+- If history starts before the chart, the timeline rewinds so those months appear
+- Sample files (loan + savings per format, 2020–2025): `examples/historical-imports/{csv,ofx,qif}/`
+- **OFX/QFX** = bank/broker “download for Quicken” / Web Connect; **QIF** = classic Quicken-style export — see `examples/historical-imports/README.md` for sources and tips
+
 ## Chart Features
 
 - **Interactive Hover**: Move cursor over chart lines to see values at specific points in time
@@ -61,7 +68,7 @@ A simple web application to visualize financial growth over time, including comp
 - Uses TradingView's Lightweight Charts library for professional-grade charting
 - Pure HTML/CSS/JavaScript — no build process required; open `index.html` directly
 - Styles split by concern under `css/`: `base.css`, `drawer.css`, `folder.css`, `overlays.css`
-- Scripts under `js/`: UI helpers (`format.js`, `folder-sheet.js`, `drawer.js`, `summary-overlay.js`) plus core modules (`calculator.js`, `chart-manager.js`, `field-model.js`, `data-manager.js`, `ui-manager.js`, `override-manager.js`, `app.js`)
+- Scripts under `js/`: UI helpers (`format.js`, `folder-sheet.js`, `drawer.js`, `summary-overlay.js`) plus core modules (`calculator.js`, `chart-manager.js`, `field-model.js`, `data-manager.js`, `ui-manager.js`, `historical-import.js`, `override-manager.js`, `app.js`)
 - Calculations include compound interest and loan amortization schedules
 - Real-time updates with input debouncing for smooth performance
 - JSON-based configuration system for saving/loading scenarios
@@ -78,11 +85,11 @@ Try importing `example.json` to see a realistic financial scenario in action.
 ```bash
 npm install
 npm test              # unit + UI suites
-npm run test:unit     # field-model / LOAN_FIELDS / remaining balance (no Chrome)
+npm run test:unit     # field-model + historical-import (no Chrome)
 npm run test:ui       # loose-leaf row alignment (needs Chrome)
 ```
 
-- **Unit** (`tests/field-model.mjs`): field-schema helpers, loan surface/order, JSON serialize/hydrate, `remainingBalanceAsOf`.
+- **Unit** (`tests/field-model.mjs`, `tests/historical-import.mjs`): field-schema helpers, loan surface/order, JSON serialize/hydrate, `remainingBalanceAsOf`, CSV/OFX/QIF historical parse + merge.
 - **UI** (`tests/loose-leaf-alignment.mjs`): every Loans loose-leaf `.sheet-ruled-row` sits on the `--leaf-line` grid (prevents table-row height drift). Set `CHROME_PATH` if Chrome is not at the macOS default location.
 
 See `AGENTS.md` → **Tests** for when to run which suite after a change.

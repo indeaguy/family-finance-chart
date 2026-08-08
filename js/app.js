@@ -11,8 +11,10 @@
  *   showAccountBalanceOverrides, closeAccountBalanceOverrides,
  *   shiftAccountOverrideYear, selectAccountOverrideMonth,
  *   addAccountBalanceOverrideFromForm, removeAccountBalanceOverride,
+ *   importAccountBalanceHistory, handleAccountBalanceHistoryFile,
  *   highlightChartLoan, highlightChartSavings, clearChartListHover
  * Depends on: FinanceCalculator, ChartManager, DataManager, UIManager, OverrideManager;
+ *   historical-import.js (via OverrideManager);
  *   folder-sheet.js (resetFolderSheetRaise after loan/savings list changes);
  *   field-model via UIManager.ensureLoanFormFields / ensureSavingsFormFields;
  *   DOM: #chart, projection inputs, loan/savings form fields, #jsonFileInput
@@ -471,6 +473,12 @@ function addAccountBalanceOverrideFromForm() {
 }
 function removeAccountBalanceOverride(yyyyMm) {
     if (app) app.overrideManager.removeAccountBalanceOverride(yyyyMm);
+}
+function importAccountBalanceHistory(kind, entityId) {
+    if (app) app.overrideManager.importAccountBalanceHistory(kind, entityId);
+}
+function handleAccountBalanceHistoryFile(event) {
+    if (app) app.overrideManager.handleAccountBalanceHistoryFile(event);
 }
 function highlightChartLoan(id) {
     if (app) app.chartManager.highlightLoanFromList(id);

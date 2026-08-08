@@ -1,12 +1,15 @@
 /**
  * Savings + loan-balance override modal: CRUD, date conversion, list rendering.
- * Also owns per-account balance-override calendar modal (YYYY-MM → ending balance).
+ * Also owns per-account balance-override calendar modal (YYYY-MM → ending balance)
+ * and historical balance file import (CSV / OFX / QFX / QIF → merge into balanceOverrides).
  * Defines globals: OverrideManager (HTML onclick wrappers live in app.js)
- * Depends on: DataManager and UIManager (injected); DOM: #netWorthOverridesModal,
- *   #netWorthOverridesList, #overrideDate, #overrideSavings, #overrideLoanBalance,
- *   #accountBalanceOverridesModal, #accountBalanceOverridesCalendar,
- *   #accountBalanceOverrideMonth, #accountBalanceOverrideAmount,
- *   #accountBalanceOverridesList, #accountBalanceOverridesTitle,
+ * Depends on: DataManager and UIManager (injected); historical-import.js
+ *   (parseHistoricalBalanceFile, HistoricalImportError);
+ *   DOM: #netWorthOverridesModal, #netWorthOverridesList, #overrideDate,
+ *   #overrideSavings, #overrideLoanBalance, #accountBalanceOverridesModal,
+ *   #accountBalanceOverridesCalendar, #accountBalanceOverrideMonth,
+ *   #accountBalanceOverrideAmount, #accountBalanceOverridesList,
+ *   #accountBalanceOverridesTitle, #accountBalanceHistoryFileInput,
  *   #startDate, #timePeriod
  */
 
@@ -289,6 +292,94 @@ class OverrideManager {
         );
         this.renderAccountBalanceOverrides();
         if (window.app) window.app.updateChart();
+    }
+
+    /**
+     * Open the hidden file picker for historical balances.
+     * @param {string} [kind]
+     * @param {number} [entityId]
+     */
+    importAccountBalanceHistory(kind, entityId) {
+        if (kind && entityId != null) {
+            this.accountOverrideTarget = { kind, entityId: Number(entityId) };
+        }
+        if (!this.accountOverrideTarget) {
+            alert('Open an account card (Edit) or Date overrides before importing history.');
+            return;
+        }
+        const input = document.getElementById('accountBalanceHistoryFileInput');
+        if (!input) {
+            alert('Import control is missing from the page.');
+            return;
+        }
+        input.value = '';
+        input.click();
+    }
+
+    handleAccountBalanceHistoryFile(event) {
+        const file = event && event.target && event.target.files && event.target.files[0];
+        if (!file) return;
+        if (!this.accountOverrideTarget) {
+            alert('No account selected for import.');
+            return;
+        }
+        const { kind, entityId } = this.accountOverrideTarget;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const text = String(reader.result || '');
+                const result = parseHistoricalBalanceFile(file.name, text);
+                const keys = Object.keys(result.monthly).sort();
+                const range = keys.length === 1
+                    ? keys[0]
+                    : `${keys[0]} … ${keys[keys.length - 1]}`;
+                const warnNote = result.warnings && result.warnings.length
+                    ? `\n\nNotes:\n- ${result.warnings.slice(0, 5).join('\n- ')}`
+                    : '';
+                const ok = confirm(
+                    `Import ${keys.length} monthly balance` +
+                    `${keys.length === 1 ? '' : 's'} (${range}) from ${result.format.toUpperCase()}?\n` +
+                    `Months in the file overwrite existing date overrides; other months stay.\n` +
+                    `If history starts before the chart, the timeline rewinds to include it.` +
+                    warnNote
+                );
+                if (!ok) return;
+
+                this.dataManager.mergeEntityBalanceOverrides(kind, entityId, result.monthly);
+                this.dataManager.ensureChartCoversMonths(kind, entityId, result.monthly);
+
+                const modal = document.getElementById('accountBalanceOverridesModal');
+                if (modal && modal.style.display === 'block') {
+                    const firstKey = keys[0];
+                    if (firstKey) {
+                        this.accountOverrideYear = parseInt(firstKey.slice(0, 4), 10);
+                        this.accountOverrideSelectedMonth = firstKey;
+                    }
+                    this.renderAccountBalanceOverrides();
+                }
+                if (window.app) {
+                    window.app.updateChart();
+                    if (this.uiManager) {
+                        this.uiManager.openAccountCards.forEach((entry, key) => {
+                            if (entry && !entry.editing &&
+                                entry.kind === kind && entry.entityId === entityId) {
+                                this.uiManager.refreshAccountCard(key);
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                const message = (err && err.message) || 'Could not import historical balances.';
+                alert(message);
+            } finally {
+                if (event && event.target) event.target.value = '';
+            }
+        };
+        reader.onerror = () => {
+            alert('Failed to read the selected file.');
+            if (event && event.target) event.target.value = '';
+        };
+        reader.readAsText(file);
     }
 
     renderAccountBalanceOverrides() {

@@ -10,6 +10,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 
 const suites = [
     { name: 'field-model', file: 'field-model.mjs' },
+    { name: 'historical-import', file: 'historical-import.mjs' },
     { name: 'loose-leaf-alignment', file: 'loose-leaf-alignment.mjs' },
 ];
 

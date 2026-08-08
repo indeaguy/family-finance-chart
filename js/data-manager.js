@@ -7,7 +7,8 @@
  *   #chartTitle, etc.)
  * Owns: loans[], savingsAccounts[], financialOverrides[]; createLoan / addLoan / updateLoan / removeLoan;
  *   createSavingsAccount / addSavingsAccount / updateSavingsAccount / removeSavingsAccount;
- *   entity balanceOverrides CRUD helpers; exportData / importData; loadDefaultExampleIfNeeded (DEFAULT_EXAMPLE_DATA)
+ *   entity balanceOverrides CRUD helpers (mergeEntityBalanceOverrides, ensureChartCoversMonths);
+ *   exportData / importData; loadDefaultExampleIfNeeded (DEFAULT_EXAMPLE_DATA)
  *
  * Field schemas live with their owner store. LOAN_FIELDS / SAVINGS_FIELDS drive
  * form/table/detail/JSON via field-model helpers.
@@ -646,6 +647,123 @@ class DataManager {
         entity.balanceOverrides = this.normalizeBalanceOverrides(entity.balanceOverrides);
         delete entity.balanceOverrides[yyyyMm];
         return entity;
+    }
+
+    /**
+     * Merge imported YYYY-MM balances into an entity's balanceOverrides.
+     * Imported months overwrite; other months are left unchanged. Values are abs()'d.
+     */
+    mergeEntityBalanceOverrides(kind, entityId, monthlyMap) {
+        const entity = this.getEntityByKind(kind, entityId);
+        if (!entity) return null;
+        const incoming = this.normalizeBalanceOverrides(monthlyMap);
+        const merged = Object.assign({}, this.normalizeBalanceOverrides(entity.balanceOverrides));
+        Object.entries(incoming).forEach(([yyyyMm, amount]) => {
+            merged[yyyyMm] = Math.abs(amount);
+        });
+        entity.balanceOverrides = merged;
+        return entity;
+    }
+
+    /** Absolute YYYY-MM for a 1-based month index from a chart base date. */
+    calendarMonthFromBase(baseDate, monthIndex) {
+        const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + (monthIndex || 1) - 1, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    monthsBetweenKeys(earlierKey, laterKey) {
+        if (!/^\d{4}-\d{2}$/.test(earlierKey) || !/^\d{4}-\d{2}$/.test(laterKey)) return 0;
+        const [ey, em] = earlierKey.split('-').map(Number);
+        const [ly, lm] = laterKey.split('-').map(Number);
+        return (ly - ey) * 12 + (lm - em);
+    }
+
+    /**
+     * Rewind #startDate (and reindex startMonth / endMonth / global overrides) so
+     * imported YYYY-MM keys fall on the chart. Extends #timePeriod so the prior
+     * chart end is preserved. Aligns the target entity start to the earliest month.
+     * @returns {{ rewound: boolean, previousStart: string, newStart: string, monthsAdded: number }}
+     */
+    ensureChartCoversMonths(kind, entityId, monthlyMap) {
+        const normalized = this.normalizeBalanceOverrides(monthlyMap);
+        const keys = Object.keys(normalized).sort();
+        const empty = { rewound: false, previousStart: '', newStart: '', monthsAdded: 0 };
+        if (keys.length === 0) return empty;
+
+        const earliest = keys[0];
+        const startEl = document.getElementById('startDate');
+        const timeEl = document.getElementById('timePeriod');
+        const previousStart = (startEl && startEl.value) || earliest;
+        let newStart = previousStart;
+        let monthsAdded = 0;
+        let rewound = false;
+
+        if (/^\d{4}-\d{2}$/.test(previousStart) && earliest < previousStart) {
+            rewound = true;
+            newStart = earliest;
+            monthsAdded = this.monthsBetweenKeys(earliest, previousStart);
+            const oldBase = new Date(previousStart + '-01');
+            const newBase = new Date(newStart + '-01');
+
+            const resolveAbsStart = (entity) => {
+                if (entity.startDate && /^\d{4}-\d{2}$/.test(entity.startDate)) {
+                    return entity.startDate;
+                }
+                return this.calendarMonthFromBase(oldBase, entity.startMonth || 1);
+            };
+            const resolveAbsEnd = (entity) => {
+                if (entity.endDate && /^\d{4}-\d{2}$/.test(entity.endDate)) {
+                    return entity.endDate;
+                }
+                if (entity.endMonth == null) return null;
+                return this.calendarMonthFromBase(oldBase, entity.endMonth);
+            };
+
+            this.loans.forEach((loan) => {
+                loan.startDate = resolveAbsStart(loan);
+                loan.startMonth = this.calculateStartMonth(loan.startDate, newBase);
+            });
+            this.savingsAccounts.forEach((account) => {
+                account.startDate = resolveAbsStart(account);
+                account.startMonth = this.calculateStartMonth(account.startDate, newBase);
+                const absEnd = resolveAbsEnd(account);
+                if (absEnd) {
+                    account.endDate = absEnd;
+                    account.endMonth = this.calculateStartMonth(absEnd, newBase);
+                } else {
+                    account.endMonth = null;
+                }
+            });
+
+            const shifted = {};
+            Object.entries(this.overrides || {}).forEach(([month, value]) => {
+                const m = parseInt(month, 10);
+                if (!Number.isFinite(m)) return;
+                shifted[m + monthsAdded] = value;
+            });
+            this.overrides = shifted;
+
+            if (startEl) startEl.value = newStart;
+            if (timeEl) {
+                const oldYears = parseInt(timeEl.value, 10) || 1;
+                const oldSpanMonths = oldYears * 12;
+                const newSpanMonths = oldSpanMonths + monthsAdded;
+                timeEl.value = String(Math.max(oldYears, Math.ceil(newSpanMonths / 12)));
+            }
+        }
+
+        const entity = this.getEntityByKind(kind, entityId);
+        if (entity) {
+            const baseKey = (startEl && startEl.value) || newStart || previousStart;
+            const baseDate = baseKey ? new Date(baseKey + '-01') : new Date();
+            if (!entity.startDate || !/^\d{4}-\d{2}$/.test(entity.startDate) || entity.startDate > earliest) {
+                entity.startDate = earliest;
+            }
+            entity.startMonth = this.calculateStartMonth(entity.startDate, baseDate);
+            if (entity.startMonth < 1) entity.startMonth = 1;
+        }
+
+        return { rewound, previousStart, newStart, monthsAdded };
     }
     
     // Override Management

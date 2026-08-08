@@ -1,7 +1,7 @@
 /*
  * Overlays and modals: summary toggle + overlay panel, legacy summary/loan
  * list styles, floating loose-leaf modals (loan detail / add loan), generic
- * chalkboard modal styles, override rows, account balance-override calendar, RV chart marker.
+ * chalkboard modal styles, override rows, account balance-override calendar + history import, RV chart marker.
  * Load order: must load LAST so these rules win over the media queries in
  * base.css at equal specificity, as in the original single stylesheet.
  */
@@ -544,6 +544,20 @@
     width: 140px;
 }
 .balance-override-form button {
+    width: auto;
+}
+.balance-override-import {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0 12px;
+}
+.balance-override-import .help-text {
+    margin: 0;
+    flex: 1 1 180px;
+}
+.balance-override-import .sheet-inline-btn {
     width: auto;
 }
 .balance-override-empty {
