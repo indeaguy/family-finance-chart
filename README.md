@@ -21,9 +21,9 @@ A simple web application to visualize financial growth over time, including comp
    - Click the rolling pencil **Add Savings** button to open the loose-leaf form
    - Fields: name, initial amount, monthly contribution, interest rate, start date, optional end date, and whether it counts toward Total Savings
    - Uncheck **Include in Total Savings** for earmarked spend (vacation, gifts) — the line still charts, but stays out of the total
-   - Active savings fill the sheet as ruled rows — click a row for details / Remove; excluded accounts show `(excl.)` in the name
+   - Active savings fill the sheet as ruled rows — click a row to open its **account card** (read-only details / Remove) beside the drawer control-group left of the folder; excluded accounts show `(excl.)` in the name
 3. Switch to the manila **Loans** folder tab:
-   - Pencil becomes **Add Loan**; active loans use the same ruled-row sheet pattern
+   - Pencil becomes **Add Loan**; active loans use the same ruled-row sheet pattern; click a row for that loan’s account card (same left-of-folder placement)
    - Scroll over the folder to raise the loose-leaf when rows are clipped
 
 4. The chart will show multiple lines:

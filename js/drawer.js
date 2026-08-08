@@ -16,7 +16,8 @@
  *   (closeNetWorthOverrides, closeAddLoanForm, closeAddSavingsForm);
  *   DOM: #drawer, .drawer-handle, .pencil, .pencil-barrel-roll,
  *   #netWorthOverridesModal, #chartHeaderModal, #addLoanModal, #addSavingsModal,
- *   #summaryOverlay. Floating detail panels (#floatingDetailPanelsRoot) do not block drawer close.
+ *   #summaryOverlay. Account cards (#accountCardsRoot) do not block drawer close;
+ *   open/close/resize re-pin them via UIManager.syncAccountCardAnchorPosition.
  */
 
 /** Must stay in sync with `.drawer-container { transition: transform … }` */
@@ -290,6 +291,9 @@ function openDrawer() {
         // Drawer stopped — pencil keeps rolling briefly, then eases out
         handoffDeskPencilMomentum();
         playPencilEntranceRoll();
+        if (window.app && window.app.uiManager) {
+            window.app.uiManager.syncAccountCardAnchorPosition();
+        }
     };
     const onDrawerOpened = (e) => {
         if (e.target !== drawer || e.propertyName !== 'transform') return;
@@ -325,6 +329,10 @@ function closeDrawer() {
         closeHandoffDone = true;
         drawer.removeEventListener('transitionend', finishClosePencil);
         handoffDeskPencilMomentum();
+        // Cards stay open after drawer close; park at bottom-left fallback
+        if (window.app && window.app.uiManager) {
+            window.app.uiManager.syncAccountCardAnchorPosition();
+        }
     };
     drawer.addEventListener('transitionend', finishClosePencil);
     setTimeout(finishClosePencil, DRAWER_OPEN_MS + 50);
@@ -335,6 +343,9 @@ window.addEventListener('resize', () => {
     const drawer = document.getElementById('drawer');
     if (drawer && drawer.classList.contains('open')) {
         updateFolderPocketHeight();
+    }
+    if (window.app && window.app.uiManager) {
+        window.app.uiManager.syncAccountCardAnchorPosition();
     }
 });
 

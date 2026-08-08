@@ -2,6 +2,12 @@
 
 Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional. Prefer opening **one** file whose header lists its contract; only follow Depends-on links when needed.
 
+## Domain language
+
+| Term | Meaning | Code aliases (search these too) |
+|------|---------|----------------------------------|
+| **Account card** | Read-only floating loose-leaf sheet for one loan or savings account (not the editable Add Loan / Add Savings modals). One per entity; staggered over `#accountCardAnchor` (drawer `.control-group` left of the folder); no backdrop. | `openAccountCard` / `closeAccountCard`, `showLoanAccountCard` / `showSavingsAccountCard`, `#accountCardsRoot`, `#accountCardTemplate`, `#accountCardAnchor`, `.account-card`, `setAccountCardFocus` |
+
 ## Which file for which task
 
 | Task | Read first |
@@ -11,7 +17,7 @@ Plain HTML/CSS/JS, no build step. Globals and `onclick` handlers are intentional
 | Field schema helpers (form/table/export) | `js/field-model.js` |
 | Default demo loans + savings (no user import) | `js/default_config/` |
 | Loans/savings/overrides store, JSON import/export, `LOAN_FIELDS` / `SAVINGS_FIELDS` | `js/data-manager.js` |
-| Forms, loans/savings lists, loan/savings modals, download | `js/ui-manager.js` |
+| Forms, loans/savings lists, add modals, account cards, download | `js/ui-manager.js` |
 | Field-model / loan+savings schema / balance-as-of unit tests | `tests/field-model.mjs` (`npm run test:unit`) |
 | Loose-leaf line/text alignment regression | `tests/loose-leaf-alignment.mjs` (`npm run test:ui`) |
 | Net-worth override modal | `js/override-manager.js` |
@@ -59,7 +65,7 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 - **`css/base.css`** — Body, `.main-container`, chart container/header/overlay, general mobile rules.
 - **`css/drawer.css`** — Drawer handle, container, wood interior, control groups, desk objects in `.drawer-desk-layer` (stubby pencil pose/roll driven by `drawer.js`), close button.
 - **`css/folder.css`** — File folder, tabs, pocket, loose-leaf, Add Loan pencil roll, shared `.pencil-*` part styles, loans table.
-- **`css/overlays.css`** — Summary overlay, modals, floating loose-leaf sheets, chart-header modal.
+- **`css/overlays.css`** — Summary overlay, modals, account cards (`.account-card`), chart-header modal.
 
 ### UI globals (former `utilities.js`)
 
@@ -71,11 +77,11 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 ### Core app modules
 
 - **`js/calculator.js`** — `FinanceCalculator`: multi-account savings growth (end-date freeze), loan amortization, overrides → chart data; `remainingBalanceAsOf` / `savingsBalanceAsOf` for single-entity balance through a date. Total Savings = sum of account balances (loan payments do not reduce savings).
-- **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total savings + per-account savings lines (`INDIVIDUAL_SAVINGS_LINES`), total loan balance + per-loan lines (`INDIVIDUAL_LOAN_LINES`); hover right-axis labels are stacked DOM rows (`title` + amount + interest; savings → earned, loans → paid). **`setDetailFocus`** dims non-focused series while floating read-only detail panels are open and filters Y-axis hover labels to those series only.
+- **`js/chart-manager.js`** — `ChartManager`: LightweightCharts series and markers; total savings + per-account savings lines (`INDIVIDUAL_SAVINGS_LINES`), total loan balance + per-loan lines (`INDIVIDUAL_LOAN_LINES`); hover right-axis labels are stacked DOM rows (`title` + amount + interest; savings → earned, loans → paid). **`setAccountCardFocus`** dims non-focused series while account cards are open and filters Y-axis hover labels to those series only.
 - **`js/field-model.js`** — Reusable field-schema helpers: filter/format/serialize/hydrate and render form/table/detail from a `*_FIELDS` array. Entity-agnostic; schemas live with their owner store.
 - **`js/default_config/example-default-loans.js`** — `DEFAULT_EXAMPLE_DATA` demo loans + savings accounts applied on load when the user has not imported JSON (script tag; works with `file://`).
 - **`js/data-manager.js`** — `DataManager`: loans, savings accounts, overrides, import/export; owns `LOAN_FIELDS` and `SAVINGS_FIELDS`; applies `DEFAULT_EXAMPLE_DATA` via `loadDefaultExampleIfNeeded()`. Legacy singular `savings.initialAmount` / `monthlySavings` / `interestRate` imports become one account.
-- **`js/ui-manager.js`** — `UIManager`: forms, loans/savings lists, add modals, floating read-only detail panels (cloned from `#floatingDetailPanelTemplate` into `#floatingDetailPanelsRoot`), JSON download (UI generated from `*_FIELDS`).
+- **`js/ui-manager.js`** — `UIManager`: forms, loans/savings lists, add modals, account cards (cloned from `#accountCardTemplate` into `#accountCardsRoot`), JSON download (UI generated from `*_FIELDS`).
 - **`js/override-manager.js`** — `OverrideManager`: dual savings + loan-balance overrides.
 - **`js/app.js`** — `FinanceApp` + onclick globals; dependency injection hub.
 
@@ -85,11 +91,11 @@ Cross-file calls happen at event time, not load time, except that `app.js` must 
 |-------|----------------|
 | Drawer | `#drawer`, `#drawerTopRef`, `.drawer-handle`, `.drawer-desk-layer` (pencil/pin/eraser) |
 | Folder | `#loansSavingsFolder`, `#folderSheetLoans`, `#folderSheetSavings`, `#loansList`, `#savingsList`, `#addLoanPencilBtn` |
-| Projection (hidden) | `#startDate`, `#timePeriod`, `#goalAmount` — chart timeline; former Savings & Interest form shell left in place without visible fields |
+| Projection (hidden) | `#accountCardAnchor` (`.control-group` left of folder), `#startDate`, `#timePeriod`, `#goalAmount` — chart timeline; former Savings & Interest form shell; also the account-card position anchor |
 | Chart | `#chart`, `#chartOverlay`, `.chart-header` |
 | Summary | `#summaryOverlay`, `#summaryOverlayContent` |
 | Loan modals | `#addLoanModal`, `#addLoanFormFields`; loan inputs (`#loanAmount`, etc.) are generated into `#addLoanFormFields` from `LOAN_FIELDS` |
-| Loan/savings detail panels | `#floatingDetailPanelsRoot`, `#floatingDetailPanelTemplate` — dynamic `.floating-detail-panel` instances (read-only; one per entity; staggered on chart right side) |
+| Account cards | `#accountCardsRoot`, `#accountCardTemplate` — dynamic `.account-card` instances (read-only loan/savings sheets; one per entity; staggered at `#accountCardAnchor`) |
 | Savings modals | `#addSavingsModal`, `#addSavingsFormFields`; savings inputs generated from `SAVINGS_FIELDS` |
 | Overrides | `#netWorthOverridesModal`, `#netWorthOverridesList`, `#overrideDate`, `#overrideSavings`, `#overrideLoanBalance` |
 | Chart header modal | `#chartHeaderModal`, `#chartTitle`, `#chartSubtitle`, `#chartHeaderBg`, `#chartHeaderPos`, `#chartHeaderVisible` |
@@ -102,8 +108,8 @@ Do not “fix” these in drive-by refactors; document and keep in sync:
 1. **`updateSummaryOverlay`** (`summary-overlay.js`) prefers `window.app.calculator.calculateFinancialGrowth()` so multi-account totals stay aligned with the chart.
 2. **`app.js`** calls global **`resetFolderSheetRaise()`** after loan or savings list changes so the folder pocket stays correct.
 3. **`chart-manager.js`** calls **`window.showChartHover`** (from `summary-overlay.js`) on crosshair move.
-4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, add loan/savings modals, and overrides (via `app.js` globals). Floating read-only detail panels do **not** block drawer close or use a backdrop.
-5. **`UIManager.openDetailPanels`** → **`ChartManager.setDetailFocus`** keeps chart emphasis and Y-axis hover labels aligned with open detail sheets.
+4. **`drawer.js`** click-outside handler closes drawer, summary overlay, chart-header modal, add loan/savings modals, and overrides (via `app.js` globals). Account cards do **not** block drawer close or use a backdrop. Drawer open/close/`resize` call **`UIManager.syncAccountCardAnchorPosition`** so open cards stay on `#accountCardAnchor`.
+5. **`UIManager.openAccountCard`** → **`ChartManager.setAccountCardFocus`** keeps chart emphasis and Y-axis hover labels aligned with open account cards.
 6. **`UIManager.formatCurrency`** is separate from the global `formatCurrency` in `format.js` — same idea, two call sites.
 7. **Savings end date:** after `endMonth` / `endDate`, an account freezes at that month’s balance but still adds that frozen value to Total Savings for the rest of the chart (when `includeInTotal` is true).
 8. **Savings `includeInTotal`:** when false, the account still gets its own chart line but is omitted from Total Savings / net worth (earmarked spend such as vacation).

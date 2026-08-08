@@ -6,7 +6,7 @@
  * Hover right-axis labels are DOM (title + amount + interest) with collision stacking —
  * LC native axis pills cannot do adjacent interest or shared stacking with custom badges.
  * Near a line, that series and its axis row emphasize; others dim (see SERIES_HOVER_*).
- * While floating read-only detail panels are open, setDetailFocus dims non-panel series
+ * While account cards are open, setAccountCardFocus dims non-card series
  * and Y-axis hover labels show only the focused entity lines.
  */
 
@@ -102,24 +102,24 @@ class ChartManager {
         /** @type {Map<number, object>} savings id → individual savings line series */
         this.seriesBySavingsId = new Map();
 
-        /** @type {Set<object>} series emphasized while a floating detail panel is open */
-        this.detailFocusSeries = new Set();
+        /** @type {Set<object>} series emphasized while an account card is open */
+        this.accountCardFocusSeries = new Set();
 
-        /** @type {number[]} loan ids with an open detail panel */
-        this.detailFocusLoanIds = [];
+        /** @type {number[]} loan ids with an open account card */
+        this.accountCardFocusLoanIds = [];
 
-        /** @type {number[]} savings ids with an open detail panel */
-        this.detailFocusSavingsIds = [];
+        /** @type {number[]} savings ids with an open account card */
+        this.accountCardFocusSavingsIds = [];
 
-        /** @type {object|null} last crosshair move payload for hover refresh on panel close */
+        /** @type {object|null} last crosshair move payload for hover refresh on account-card close */
         this.lastCrosshairParam = null;
 
         /** @type {object|null} chart data row at last crosshair time */
         this.lastCrosshairDataPoint = null;
     }
 
-    isDetailFocusActive() {
-        return this.detailFocusLoanIds.length > 0 || this.detailFocusSavingsIds.length > 0;
+    isAccountCardFocusActive() {
+        return this.accountCardFocusLoanIds.length > 0 || this.accountCardFocusSavingsIds.length > 0;
     }
     
     createChart(container) {
@@ -218,13 +218,13 @@ class ChartManager {
     
     setupChartHover(chart) {
         chart.subscribeCrosshairMove(param => {
-            const detailFocusActive = this.isDetailFocusActive();
+            const accountCardFocusActive = this.isAccountCardFocusActive();
 
             if (!param.time || !window.app || !window.app.uiManager) {
                 this.lastCrosshairParam = null;
                 this.lastCrosshairDataPoint = null;
                 this.clearAxisLabels();
-                if (!this.listHoveredSeries && !detailFocusActive) {
+                if (!this.listHoveredSeries && !accountCardFocusActive) {
                     this.setHoveredSeries(null);
                 }
                 return;
@@ -235,7 +235,7 @@ class ChartManager {
                 this.lastCrosshairParam = null;
                 this.lastCrosshairDataPoint = null;
                 this.clearAxisLabels();
-                if (!this.listHoveredSeries && !detailFocusActive) {
+                if (!this.listHoveredSeries && !accountCardFocusActive) {
                     this.setHoveredSeries(null);
                 }
                 return;
@@ -248,7 +248,7 @@ class ChartManager {
                 window.showChartHover(param, dataPoint);
             }
 
-            if (!detailFocusActive) {
+            if (!accountCardFocusActive) {
                 const chartHoveredSeries = this.resolveHoveredSeries(param);
                 const hoveredSeries = chartHoveredSeries ?? this.listHoveredSeries;
                 this.setHoveredSeries(hoveredSeries);
@@ -259,16 +259,16 @@ class ChartManager {
         });
     }
 
-    setDetailFocus({ loanIds = [], savingsIds = [] }) {
-        this.detailFocusLoanIds = loanIds.map(Number);
-        this.detailFocusSavingsIds = savingsIds.map(Number);
+    setAccountCardFocus({ loanIds = [], savingsIds = [] }) {
+        this.accountCardFocusLoanIds = loanIds.map(Number);
+        this.accountCardFocusSavingsIds = savingsIds.map(Number);
 
-        if (this.isDetailFocusActive()) {
-            // List-row hover from opening a panel must not linger after panels close.
+        if (this.isAccountCardFocusActive()) {
+            // List-row hover from opening a card must not linger after cards close.
             this.listHoveredSeries = null;
         }
 
-        this.resolveDetailFocusSeries();
+        this.resolveAccountCardFocusSeries();
         this.refreshHoverPresentation();
     }
 
@@ -279,10 +279,10 @@ class ChartManager {
         return this.resolveHoveredSeries(this.lastCrosshairParam);
     }
 
-    /** Re-apply line emphasis and Y-axis labels after detail panels open/close. */
+    /** Re-apply line emphasis and Y-axis labels after account cards open/close. */
     refreshHoverPresentation() {
-        if (this.isDetailFocusActive()) {
-            this.applyDetailFocusHighlight();
+        if (this.isAccountCardFocusActive()) {
+            this.applyAccountCardFocusHighlight();
             if (this.lastCrosshairParam?.time && this.lastCrosshairDataPoint) {
                 this.updateHoverAxisLabels(this.lastCrosshairParam, this.lastCrosshairDataPoint, null);
             } else {
@@ -291,7 +291,7 @@ class ChartManager {
             return;
         }
 
-        // Detail focus ended — reset all lines, then only re-emphasize crosshair proximity.
+        // Account-card focus ended — reset all lines, then only re-emphasize crosshair proximity.
         this.activeHoveredSeries = null;
         this.applySeriesHoverHighlight(null);
 
@@ -308,20 +308,20 @@ class ChartManager {
         }
     }
 
-    resolveDetailFocusSeries() {
-        this.detailFocusSeries.clear();
-        for (const id of this.detailFocusLoanIds) {
+    resolveAccountCardFocusSeries() {
+        this.accountCardFocusSeries.clear();
+        for (const id of this.accountCardFocusLoanIds) {
             const series = this.seriesByLoanId.get(id);
-            if (series) this.detailFocusSeries.add(series);
+            if (series) this.accountCardFocusSeries.add(series);
         }
-        for (const id of this.detailFocusSavingsIds) {
+        for (const id of this.accountCardFocusSavingsIds) {
             const series = this.seriesBySavingsId.get(id);
-            if (series) this.detailFocusSeries.add(series);
+            if (series) this.accountCardFocusSeries.add(series);
         }
     }
 
-    applyDetailFocusHighlight() {
-        if (!this.isDetailFocusActive()) {
+    applyAccountCardFocusHighlight() {
+        if (!this.isAccountCardFocusActive()) {
             return;
         }
 
@@ -329,7 +329,7 @@ class ChartManager {
             const base = this.seriesBaseStyles.get(series);
             if (!base) continue;
 
-            const isFocused = this.detailFocusSeries.has(series);
+            const isFocused = this.accountCardFocusSeries.has(series);
             series.applyOptions({
                 color: isFocused ? base.color : this.colorWithAlpha(base.color, SERIES_HOVER_DIM_ALPHA),
                 lineWidth: isFocused ? base.lineWidth + 1 : base.lineWidth,
@@ -339,7 +339,7 @@ class ChartManager {
     }
 
     highlightLoanFromList(loanId) {
-        if (this.isDetailFocusActive()) return;
+        if (this.isAccountCardFocusActive()) return;
         const series = this.seriesByLoanId.get(Number(loanId));
         if (!series) return;
         this.listHoveredSeries = series;
@@ -347,7 +347,7 @@ class ChartManager {
     }
 
     highlightSavingsFromList(accountId) {
-        if (this.isDetailFocusActive()) return;
+        if (this.isAccountCardFocusActive()) return;
         const series = this.seriesBySavingsId.get(Number(accountId));
         if (!series) return;
         this.listHoveredSeries = series;
@@ -355,7 +355,7 @@ class ChartManager {
     }
 
     clearListHoverHighlight(entityId, kind) {
-        if (this.isDetailFocusActive()) return;
+        if (this.isAccountCardFocusActive()) return;
         const map = kind === 'loan' ? this.seriesByLoanId : this.seriesBySavingsId;
         const series = map.get(Number(entityId));
         if (!series || this.listHoveredSeries !== series) return;
@@ -423,7 +423,7 @@ class ChartManager {
     }
 
     setHoveredSeries(series) {
-        if (this.isDetailFocusActive()) {
+        if (this.isAccountCardFocusActive()) {
             return;
         }
         if (this.activeHoveredSeries === series) {
@@ -434,8 +434,8 @@ class ChartManager {
     }
 
     applySeriesHoverHighlight(hoveredSeries) {
-        if (this.isDetailFocusActive()) {
-            this.applyDetailFocusHighlight();
+        if (this.isAccountCardFocusActive()) {
+            this.applyAccountCardFocusHighlight();
             return;
         }
 
@@ -574,8 +574,8 @@ class ChartManager {
             return;
         }
 
-        if (this.isDetailFocusActive()) {
-            rows = rows.filter((row) => this.detailFocusSeries.has(row.series));
+        if (this.isAccountCardFocusActive()) {
+            rows = rows.filter((row) => this.accountCardFocusSeries.has(row.series));
             if (rows.length === 0) {
                 this.clearAxisLabels();
                 return;
@@ -653,8 +653,8 @@ class ChartManager {
             // Apply chart styling with zoom-out padding
             this.applyChartStyling(chart, results);
 
-            if (this.isDetailFocusActive()) {
-                this.resolveDetailFocusSeries();
+            if (this.isAccountCardFocusActive()) {
+                this.resolveAccountCardFocusSeries();
                 this.refreshHoverPresentation();
             }
             
@@ -670,7 +670,7 @@ class ChartManager {
         this.seriesBaseStyles.clear();
         this.seriesByLoanId.clear();
         this.seriesBySavingsId.clear();
-        this.detailFocusSeries.clear();
+        this.accountCardFocusSeries.clear();
         this.activeHoveredSeries = null;
         this.listHoveredSeries = null;
 

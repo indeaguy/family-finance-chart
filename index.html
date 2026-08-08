@@ -46,8 +46,9 @@
                 <div class="drawer-close" onclick="closeDrawer()">×</div>
                 
                 <div class="drawer-contents">
-                    <div class="control-group">
+                    <div class="control-group" id="accountCardAnchor">
                         <!-- Savings accounts live in the folder sheet; keep projection globals for chart timeline -->
+                        <!-- #accountCardAnchor: left-of-folder slot; account cards align here when open -->
                         <input type="hidden" id="startDate" value="">
                         <input type="hidden" id="timePeriod" value="20">
                         <input type="hidden" id="goalAmount" value="">
@@ -124,11 +125,12 @@
         </div>
     </div>
 
-    <!-- Floating detail panels mount here (cloned from template at runtime) -->
-    <div id="floatingDetailPanelsRoot" aria-live="polite"></div>
+    <!-- Account cards mount here (cloned from template at runtime) -->
+    <div id="accountCardsRoot" aria-live="polite"></div>
 
-    <template id="floatingDetailPanelTemplate">
-        <div class="floating-detail-panel" data-entity-key="">
+    <template id="accountCardTemplate">
+        <!-- .account-card = one account card shell -->
+        <div class="account-card" data-entity-key="">
             <div class="loose-leaf-sheet" role="dialog" aria-modal="false">
                 <button type="button" class="loose-leaf-sheet-x" aria-label="Close">&times;</button>
                 <div class="loose-leaf-sheet-body"></div>

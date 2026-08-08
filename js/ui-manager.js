@@ -1,28 +1,68 @@
 /**
- * Form collection/validation, loans/savings lists (ruled-row grids), detail/add modals, JSON download.
+ * Form collection/validation, loans/savings lists (ruled-row grids), add modals,
+ * account cards (read-only loan/savings sheets), JSON download.
  * Defines globals: UIManager
  * Depends on: LOAN_FIELDS, SAVINGS_FIELDS + field-model helpers (renderFormFields, renderTable,
  *   renderDetailRows, filterFields, readFormValue); DOM #addLoanFormFields, #loansList,
- *   #addLoanModal, #floatingDetailPanelsRoot, #floatingDetailPanelTemplate, #addSavingsFormFields,
- *   #savingsList, #addSavingsModal, projection fields for loadDataToForm (#startDate, #timePeriod,
- *   #goalAmount); formatCurrency is a method here (separate from format.js globals used by the
- *   summary overlay)
+ *   #addLoanModal, #accountCardsRoot, #accountCardTemplate, #accountCardAnchor,
+ *   #addSavingsFormFields, #savingsList, #addSavingsModal, projection fields for
+ *   loadDataToForm (#startDate, #timePeriod, #goalAmount); formatCurrency is a method
+ *   here (separate from format.js globals used by the summary overlay)
+ *
+ * Domain: "account card" = read-only floating sheet for one loan or savings account
+ * (#accountCardsRoot / #accountCardTemplate / .account-card / openAccountCard).
+ * Position: aligned to #accountCardAnchor (drawer .control-group left of the folder).
  */
 
-/** Stagger step for each additional floating detail panel (px). */
-const DETAIL_PANEL_STAGGER_X = 28;
-const DETAIL_PANEL_STAGGER_Y = 36;
-/** Max stagger slots before wrapping offsets so panels stay on-screen. */
-const DETAIL_PANEL_STAGGER_WRAP = 6;
+/** Stagger step for each additional account card (px). */
+const ACCOUNT_CARD_STAGGER_X = 28;
+const ACCOUNT_CARD_STAGGER_Y = 36;
+/** Max stagger slots before wrapping offsets so account cards stay on-screen. */
+const ACCOUNT_CARD_STAGGER_WRAP = 6;
 
 class UIManager {
     constructor() {
         this.currentChartData = [];
         this.loanFormBuilt = false;
         this.savingsFormBuilt = false;
-        /** @type {Map<string, { el: HTMLElement, kind: string, entityId: number, staggerIndex: number }>} */
-        this.openDetailPanels = new Map();
-        this.detailPanelFrontZ = 1100;
+        /** @type {Map<string, { el: HTMLElement, kind: string, entityId: number, staggerIndex: number }>} open account cards */
+        this.openAccountCards = new Map();
+        this.accountCardFrontZ = 1100;
+        this._accountCardAnchorBound = false;
+    }
+
+    /** Keep open cards pinned to #accountCardAnchor while that slot is on-screen. */
+    ensureAccountCardAnchorTracking() {
+        if (this._accountCardAnchorBound) return;
+        this._accountCardAnchorBound = true;
+        window.addEventListener('resize', () => this.syncAccountCardAnchorPosition());
+    }
+
+    /**
+     * Place account cards over the drawer control-group left of the folder.
+     * When the anchor is off-screen (drawer closed), keep left alignment and
+     * park near the bottom-left so cards stay reachable.
+     */
+    syncAccountCardAnchorPosition() {
+        if (this.openAccountCards.size === 0) return;
+
+        const anchor = document.getElementById('accountCardAnchor');
+        let left = 36;
+        let top = Math.max(72, window.innerHeight - 420);
+
+        if (anchor) {
+            const rect = anchor.getBoundingClientRect();
+            left = Math.max(12, Math.round(rect.left));
+            // Anchor is usable when its top is within the viewport (drawer open).
+            if (rect.top >= 0 && rect.top < window.innerHeight - 40) {
+                top = Math.round(rect.top);
+            }
+        }
+
+        for (const entry of this.openAccountCards.values()) {
+            entry.el.style.setProperty('--account-card-left', `${left}px`);
+            entry.el.style.setProperty('--account-card-top', `${top}px`);
+        }
     }
 
     ensureLoanFormFields() {
@@ -190,10 +230,10 @@ class UIManager {
             emptyMessage: 'No loans yet…',
             ctx,
             getRowAttrs: (loan) =>
-                `tabindex="0" onclick="showLoanDetail(${loan.id})" ` +
+                `tabindex="0" onclick="showLoanAccountCard(${loan.id})" ` +
                 `onmouseenter="highlightChartLoan(${loan.id})" ` +
                 `onmouseleave="clearChartListHover(${loan.id}, 'loan')" ` +
-                `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanDetail(${loan.id});}"`
+                `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showLoanAccountCard(${loan.id});}"`
         });
     }
 
@@ -322,61 +362,62 @@ class UIManager {
             emptyMessage: 'No savings yet…',
             ctx,
             getRowAttrs: (account) =>
-                `tabindex="0" onclick="showSavingsDetail(${account.id})" ` +
+                `tabindex="0" onclick="showSavingsAccountCard(${account.id})" ` +
                 `onmouseenter="highlightChartSavings(${account.id})" ` +
                 `onmouseleave="clearChartListHover(${account.id}, 'savings')" ` +
-                `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSavingsDetail(${account.id});}"`
+                `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSavingsAccountCard(${account.id});}"`
         });
     }
 
-    detailPanelKey(kind, entityId) {
+    accountCardKey(kind, entityId) {
         return `${kind}:${entityId}`;
     }
 
-    applyDetailPanelStagger() {
+    applyAccountCardStagger() {
         let index = 0;
-        for (const entry of this.openDetailPanels.values()) {
-            const slot = index % DETAIL_PANEL_STAGGER_WRAP;
+        for (const entry of this.openAccountCards.values()) {
+            const slot = index % ACCOUNT_CARD_STAGGER_WRAP;
             entry.staggerIndex = slot;
-            entry.el.style.setProperty('--panel-offset-x', `${slot * DETAIL_PANEL_STAGGER_X}px`);
-            entry.el.style.setProperty('--panel-offset-y', `${slot * DETAIL_PANEL_STAGGER_Y}px`);
+            entry.el.style.setProperty('--account-card-offset-x', `${slot * ACCOUNT_CARD_STAGGER_X}px`);
+            entry.el.style.setProperty('--account-card-offset-y', `${slot * ACCOUNT_CARD_STAGGER_Y}px`);
             index += 1;
         }
+        this.syncAccountCardAnchorPosition();
     }
 
-    bringDetailPanelToFront(key) {
-        const entry = this.openDetailPanels.get(key);
+    bringAccountCardToFront(key) {
+        const entry = this.openAccountCards.get(key);
         if (!entry) return;
 
-        for (const panel of this.openDetailPanels.values()) {
-            panel.el.classList.remove('is-front');
+        for (const card of this.openAccountCards.values()) {
+            card.el.classList.remove('is-front');
         }
 
-        this.detailPanelFrontZ += 1;
+        this.accountCardFrontZ += 1;
         entry.el.classList.add('is-front');
-        entry.el.style.setProperty('--panel-z', String(this.detailPanelFrontZ));
+        entry.el.style.setProperty('--account-card-z', String(this.accountCardFrontZ));
     }
 
-    syncDetailChartFocus() {
+    syncAccountCardChartFocus() {
         const loanIds = [];
         const savingsIds = [];
-        for (const entry of this.openDetailPanels.values()) {
+        for (const entry of this.openAccountCards.values()) {
             if (entry.kind === 'loan') loanIds.push(entry.entityId);
             else if (entry.kind === 'savings') savingsIds.push(entry.entityId);
         }
         if (window.app && window.app.chartManager) {
-            window.app.chartManager.setDetailFocus({ loanIds, savingsIds });
+            window.app.chartManager.setAccountCardFocus({ loanIds, savingsIds });
         }
     }
 
-    buildLoanDetailBodyHtml(loan, panelKey) {
+    buildLoanAccountCardBodyHtml(loan, cardKey) {
         const ctx = this.getLoanFieldContext();
         ctx.surface = 'detail';
 
         const extra = loan.isCustomPayment && loan.monthlyPayment > loan.calculatedPayment
             ? `$${(loan.monthlyPayment - loan.calculatedPayment).toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo`
             : '—';
-        const headingId = `loanDetailHeading-${panelKey.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+        const headingId = `loanAccountCardHeading-${cardKey.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
         return `
             <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(loan.name && String(loan.name).trim()) || 'Loan details'}</div>
@@ -384,112 +425,114 @@ class UIManager {
             <div class="sheet-ruled-row"><span class="detail-label">Extra / mo</span><span class="detail-value">${extra}</span></div>
             <div class="sheet-ruled-row loan-detail-actions">
                 <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeLoan(${loan.id})">Remove loan</button>
-                <button type="button" class="sheet-inline-btn" onclick="closeDetailPanel('${panelKey}')">Close</button>
+                <button type="button" class="sheet-inline-btn" onclick="closeAccountCard('${cardKey}')">Close</button>
             </div>
         `;
     }
 
-    buildSavingsDetailBodyHtml(account, panelKey) {
+    buildSavingsAccountCardBodyHtml(account, cardKey) {
         const ctx = this.getSavingsFieldContext();
         ctx.surface = 'detail';
-        const headingId = `savingsDetailHeading-${panelKey.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+        const headingId = `savingsAccountCardHeading-${cardKey.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
         return `
             <div class="sheet-ruled-row sheet-heading" id="${headingId}">${(account.name && String(account.name).trim()) || 'Savings details'}</div>
             ${renderDetailRows(SAVINGS_FIELDS, account, ctx)}
             <div class="sheet-ruled-row loan-detail-actions">
                 <button type="button" class="sheet-inline-btn sheet-danger-btn" onclick="removeSavingsAccount(${account.id})">Remove savings</button>
-                <button type="button" class="sheet-inline-btn" onclick="closeDetailPanel('${panelKey}')">Close</button>
+                <button type="button" class="sheet-inline-btn" onclick="closeAccountCard('${cardKey}')">Close</button>
             </div>
         `;
     }
 
-    openDetailPanel(kind, entity) {
+    /** Open an account card (read-only) for one loan or savings account. */
+    openAccountCard(kind, entity) {
         if (!entity || !entity.id) return;
 
-        const key = this.detailPanelKey(kind, entity.id);
-        if (this.openDetailPanels.has(key)) {
-            this.bringDetailPanelToFront(key);
+        const key = this.accountCardKey(kind, entity.id);
+        if (this.openAccountCards.has(key)) {
+            this.bringAccountCardToFront(key);
             return;
         }
 
-        const template = document.getElementById('floatingDetailPanelTemplate');
-        const root = document.getElementById('floatingDetailPanelsRoot');
+        const template = document.getElementById('accountCardTemplate');
+        const root = document.getElementById('accountCardsRoot');
         if (!template || !root) return;
 
-        const panel = template.content.firstElementChild.cloneNode(true);
-        panel.dataset.entityKey = key;
+        const card = template.content.firstElementChild.cloneNode(true);
+        card.dataset.entityKey = key;
 
-        const sheet = panel.querySelector('.loose-leaf-sheet');
-        const body = panel.querySelector('.loose-leaf-sheet-body');
-        const closeBtn = panel.querySelector('.loose-leaf-sheet-x');
+        const sheet = card.querySelector('.loose-leaf-sheet');
+        const body = card.querySelector('.loose-leaf-sheet-body');
+        const closeBtn = card.querySelector('.loose-leaf-sheet-x');
         if (!sheet || !body || !closeBtn) return;
 
         const headingId = kind === 'loan'
-            ? `loanDetailHeading-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`
-            : `savingsDetailHeading-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+            ? `loanAccountCardHeading-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`
+            : `savingsAccountCardHeading-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
         body.innerHTML = kind === 'loan'
-            ? this.buildLoanDetailBodyHtml(entity, key)
-            : this.buildSavingsDetailBodyHtml(entity, key);
+            ? this.buildLoanAccountCardBodyHtml(entity, key)
+            : this.buildSavingsAccountCardBodyHtml(entity, key);
 
         sheet.setAttribute('aria-labelledby', headingId);
-        closeBtn.addEventListener('click', () => closeDetailPanel(key));
-        panel.addEventListener('mousedown', () => this.bringDetailPanelToFront(key));
+        closeBtn.addEventListener('click', () => closeAccountCard(key));
+        card.addEventListener('mousedown', () => this.bringAccountCardToFront(key));
 
-        root.appendChild(panel);
-        const staggerIndex = this.openDetailPanels.size % DETAIL_PANEL_STAGGER_WRAP;
-        this.openDetailPanels.set(key, { el: panel, kind, entityId: entity.id, staggerIndex });
-        this.applyDetailPanelStagger();
-        this.bringDetailPanelToFront(key);
-        this.syncDetailChartFocus();
+        root.appendChild(card);
+        const staggerIndex = this.openAccountCards.size % ACCOUNT_CARD_STAGGER_WRAP;
+        this.openAccountCards.set(key, { el: card, kind, entityId: entity.id, staggerIndex });
+        this.ensureAccountCardAnchorTracking();
+        this.applyAccountCardStagger();
+        this.bringAccountCardToFront(key);
+        this.syncAccountCardChartFocus();
     }
 
-    closeDetailPanel(key) {
-        const entry = this.openDetailPanels.get(key);
+    closeAccountCard(key) {
+        const entry = this.openAccountCards.get(key);
         if (!entry) return;
 
         entry.el.remove();
-        this.openDetailPanels.delete(key);
-        this.applyDetailPanelStagger();
-        this.syncDetailChartFocus();
+        this.openAccountCards.delete(key);
+        this.applyAccountCardStagger();
+        this.syncAccountCardChartFocus();
     }
 
-    closeDetailPanelsForEntity(kind, entityId) {
-        this.closeDetailPanel(this.detailPanelKey(kind, entityId));
+    closeAccountCardsForEntity(kind, entityId) {
+        this.closeAccountCard(this.accountCardKey(kind, entityId));
     }
 
-    closeAllDetailPanels() {
-        for (const key of [...this.openDetailPanels.keys()]) {
-            this.closeDetailPanel(key);
+    closeAllAccountCards() {
+        for (const key of [...this.openAccountCards.keys()]) {
+            this.closeAccountCard(key);
         }
     }
 
-    showSavingsDetailModal(account) {
-        this.openDetailPanel('savings', account);
+    showSavingsAccountCard(account) {
+        this.openAccountCard('savings', account);
     }
 
-    closeSavingsDetailModal(accountId) {
+    closeSavingsAccountCard(accountId) {
         if (accountId != null) {
-            this.closeDetailPanelsForEntity('savings', accountId);
+            this.closeAccountCardsForEntity('savings', accountId);
             return;
         }
-        for (const [key, entry] of this.openDetailPanels.entries()) {
-            if (entry.kind === 'savings') this.closeDetailPanel(key);
+        for (const [key, entry] of this.openAccountCards.entries()) {
+            if (entry.kind === 'savings') this.closeAccountCard(key);
         }
     }
 
-    showLoanDetailModal(loan) {
-        this.openDetailPanel('loan', loan);
+    showLoanAccountCard(loan) {
+        this.openAccountCard('loan', loan);
     }
 
-    closeLoanDetailModal(loanId) {
+    closeLoanAccountCard(loanId) {
         if (loanId != null) {
-            this.closeDetailPanelsForEntity('loan', loanId);
+            this.closeAccountCardsForEntity('loan', loanId);
             return;
         }
-        for (const [key, entry] of this.openDetailPanels.entries()) {
-            if (entry.kind === 'loan') this.closeDetailPanel(key);
+        for (const [key, entry] of this.openAccountCards.entries()) {
+            if (entry.kind === 'loan') this.closeAccountCard(key);
         }
     }
     

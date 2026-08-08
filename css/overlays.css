@@ -270,23 +270,25 @@
     display: flex;
 }
 
-/* Floating read-only detail panels — no backdrop, stack on chart side */
-#floatingDetailPanelsRoot {
+/* Account cards (read-only loan/savings sheets) — no backdrop; anchor near
+   #accountCardAnchor (drawer control-group left of the folder). JS sets
+   --account-card-left / --account-card-top from that slot’s box. */
+#accountCardsRoot {
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 1000;
 }
 
-.floating-detail-panel {
-    --panel-top: 72px;
-    --panel-right: 20px;
-    --panel-offset-x: 0px;
-    --panel-offset-y: 0px;
-    --panel-z: 1000;
+.account-card {
+    --account-card-top: 72px;
+    --account-card-left: 36px;
+    --account-card-offset-x: 0px;
+    --account-card-offset-y: 0px;
+    --account-card-z: 1000;
     position: fixed;
-    top: calc(var(--panel-top) + var(--panel-offset-y));
-    right: calc(var(--panel-right) + var(--panel-offset-x));
+    top: calc(var(--account-card-top) + var(--account-card-offset-y));
+    left: calc(var(--account-card-left) + var(--account-card-offset-x));
     width: auto;
     height: auto;
     margin: 0;
@@ -294,14 +296,14 @@
     background: none;
     backdrop-filter: none;
     pointer-events: none;
-    z-index: var(--panel-z);
+    z-index: var(--account-card-z);
 }
 
-.floating-detail-panel.is-front {
-    --panel-z: 1100;
+.account-card.is-front {
+    --account-card-z: 1100;
 }
 
-.floating-detail-panel .loose-leaf-sheet {
+.account-card .loose-leaf-sheet {
     pointer-events: auto;
     transform: rotate(-0.6deg);
 }
